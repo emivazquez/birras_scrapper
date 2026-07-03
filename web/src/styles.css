@@ -120,3 +120,32 @@ thead .sticky { z-index: 3; background: var(--panel2); }
 .save { color: var(--green); font-size: 12px; }
 
 footer { color: var(--muted); font-size: 11.5px; margin-top: 18px; text-align: center; }
+
+/* Vista mobile: tarjetas */
+.cards { display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.cardhead { padding: 11px 13px; border-bottom: 1px solid var(--line); }
+.cardhead .name { font-weight: 600; font-size: 15px; }
+.cardhead .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.cardprices { display: flex; flex-direction: column; }
+.prow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 13px; border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.prow:last-child { border-bottom: none; }
+.prow.best { background: var(--green-bg); }
+.prow.best .pval { color: var(--green); font-weight: 700; }
+.prow.suspect .pval { color: var(--muted); opacity: 0.7; }
+.pname { text-transform: capitalize; color: var(--muted); }
+.prow.best .pname { color: var(--text); }
+.pval { font-weight: 600; }
+.pval .pct { color: var(--green); font-size: 12px; font-weight: 600; }
+
+@media (max-width: 719px) {
+  .app { padding: 14px 10px 50px; }
+  .brand h1 { font-size: 21px; }
+  .actions { width: 100%; }
+  .actions .btn.primary { flex: 1; justify-content: center; }
+  .filters .search { min-width: 100%; }
+  .filters select { flex: 1; }
+}

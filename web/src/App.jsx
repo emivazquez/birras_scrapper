@@ -11,6 +11,19 @@ import {
 const money = (n) =>
   n == null ? "" : "$" + Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(query).matches,
+  );
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setMatches(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, [query]);
+  return matches;
+}
+
 function Sparkline({ points }) {
   if (!points || points.length < 2) return null;
   const vals = points.map((p) => p[1]);
@@ -142,6 +155,7 @@ export default function App() {
 
   const platforms = data?.platforms || [];
   const visiblePlatforms = platforms.filter((p) => !hidden.has(p));
+  const isMobile = useMediaQuery("(max-width: 719px)");
 
   async function onRefresh() {
     setRefresh({ state: "running", msg: "Iniciando actualización…" });
@@ -262,33 +276,90 @@ export default function App() {
         ))}
       </div>
 
-      <div className="tablewrap">
-        <table>
-          <thead>
-            <tr>
-              <th className="sticky">Cerveza</th>
-              {visiblePlatforms.map((p) => (
-                <th key={p} className="pcol">{p}</th>
+      {isMobile ? (
+        <div className="cards">
+          {rows.slice(0, visibleCount).map((row) => (
+            <Card
+              key={row.canonical_id}
+              row={row}
+              platforms={visiblePlatforms}
+              per100={per100}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th className="sticky">Cerveza</th>
+                {visiblePlatforms.map((p) => (
+                  <th key={p} className="pcol">{p}</th>
+                ))}
+                <th>Mejor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, visibleCount).map((row) => (
+                <Row
+                  key={row.canonical_id}
+                  row={row}
+                  platforms={visiblePlatforms}
+                  per100={per100}
+                  history={history[row.canonical_key]}
+                />
               ))}
-              <th>Mejor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.slice(0, visibleCount).map((row) => (
-              <Row
-                key={row.canonical_id}
-                row={row}
-                platforms={visiblePlatforms}
-                per100={per100}
-                history={history[row.canonical_key]}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
+      )}
       <footer>
         Precios de referencia para {data.reference_address}. Solo comparación; verificá en cada tienda antes de comprar.
       </footer>
+    </div>
+  );
+}
+
+function Card({ row, platforms, per100 }) {
+  const entries = platforms.map((p) => ({ p, c: row.precios[p] })).filter((e) => e.c);
+  entries.sort((a, b) => {
+    const av = a.c.disponible ? (per100 ? a.c.precio_por_100ml : a.c.precio_actual) : Infinity;
+    const bv = b.c.disponible ? (per100 ? b.c.precio_por_100ml : b.c.precio_actual) : Infinity;
+    return av - bv;
+  });
+  return (
+    <div className="card">
+      <div className="cardhead">
+        <div className="name">
+          {row.display_name}
+          {row.review_needed && <span className="badge review" title="Match tentativo">?</span>}
+        </div>
+        <div className="meta">
+          {[variantLabel(row.variant_slug), row.volume_ml && `${row.volume_ml}ml`, row.container, row.pack_qty > 1 && `x${row.pack_qty}`]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      </div>
+      <div className="cardprices">
+        {entries.map(({ p, c }) => {
+          const best = row.mejor === p && row.n_platforms > 1;
+          return (
+            <div key={p} className={`prow ${best ? "best" : ""} ${c.suspect ? "suspect" : ""}`}>
+              <span className="pname">{p}</span>
+              {c.disponible ? (
+                <span className="pval">
+                  {best && <span className="dot">●</span>}
+                  {per100 ? `${money(c.precio_por_100ml)}/100ml` : money(c.precio_actual)}
+                  {c.suspect && <span className="warn">⚠</span>}
+                  {c.descuento_pct > 0 && <span className="pct"> -{Math.round(c.descuento_pct)}%</span>}
+                </span>
+              ) : (
+                <span className="oostag">sin stock</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
