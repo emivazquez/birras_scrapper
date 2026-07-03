@@ -1,8 +1,37 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { fetchMatrix, triggerRefresh, fetchStatus, CSV_URL, JSON_URL } from "./api.js";
+import {
+  fetchMatrix,
+  fetchHistory,
+  triggerRefresh,
+  fetchStatus,
+  CSV_URL,
+  JSON_URL,
+} from "./api.js";
 
 const money = (n) =>
   n == null ? "" : "$" + Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+
+function Sparkline({ points }) {
+  if (!points || points.length < 2) return null;
+  const vals = points.map((p) => p[1]);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const w = 66;
+  const h = 16;
+  const span = max - min || 1;
+  const step = w / (points.length - 1);
+  const d = vals
+    .map((v, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - ((v - min) / span) * h).toFixed(1)}`)
+    .join(" ");
+  const up = vals[vals.length - 1] > vals[0];
+  const down = vals[vals.length - 1] < vals[0];
+  const color = down ? "var(--green)" : up ? "var(--red)" : "var(--muted)";
+  return (
+    <svg className="spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} title="Evolución del más barato">
+      <path d={d} fill="none" stroke={color} strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 function relativeTime(iso) {
   if (!iso) return "—";
@@ -35,22 +64,36 @@ function minPer100(row) {
 
 export default function App() {
   const [data, setData] = useState(null);
+  const [history, setHistory] = useState({});
   const [error, setError] = useState(null);
   const [refresh, setRefresh] = useState({ state: "idle", msg: "" });
 
   const [q, setQ] = useState("");
   const [brand, setBrand] = useState("");
   const [size, setSize] = useState("");
+  const [hidden, setHidden] = useState(() => new Set());
   const [onlyComparable, setOnlyComparable] = useState(false);
   const [onlyDeal, setOnlyDeal] = useState(false);
   const [per100, setPer100] = useState(false);
   const [sort, setSort] = useState("default");
 
   const load = () =>
-    fetchMatrix().then(setData).catch((e) => setError(e.message));
+    Promise.all([fetchMatrix(), fetchHistory()])
+      .then(([m, h]) => {
+        setData(m);
+        setHistory(h || {});
+      })
+      .catch((e) => setError(e.message));
   useEffect(() => {
     load();
   }, []);
+
+  const togglePlatform = (p) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      next.has(p) ? next.delete(p) : next.add(p);
+      return next;
+    });
 
   const brands = useMemo(
     () => [...new Set((data?.products || []).map((p) => p.brand_display))].sort(),
@@ -85,6 +128,7 @@ export default function App() {
   }, [data, q, brand, size, onlyComparable, onlyDeal, sort]);
 
   const platforms = data?.platforms || [];
+  const visiblePlatforms = platforms.filter((p) => !hidden.has(p));
 
   async function onRefresh() {
     setRefresh({ state: "running", msg: "Iniciando actualización…" });
@@ -188,12 +232,26 @@ export default function App() {
         </label>
       </div>
 
+      <div className="platforms">
+        <span className="plabel">Ecommerces:</span>
+        {platforms.map((p) => (
+          <button
+            key={p}
+            className={`chip ${hidden.has(p) ? "off" : ""}`}
+            onClick={() => togglePlatform(p)}
+            title={hidden.has(p) ? "Mostrar columna" : "Ocultar columna"}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+
       <div className="tablewrap">
         <table>
           <thead>
             <tr>
               <th className="sticky">Cerveza</th>
-              {platforms.map((p) => (
+              {visiblePlatforms.map((p) => (
                 <th key={p} className="pcol">{p}</th>
               ))}
               <th>Mejor</th>
@@ -201,7 +259,13 @@ export default function App() {
           </thead>
           <tbody>
             {rows.map((row) => (
-              <Row key={row.canonical_id} row={row} platforms={platforms} per100={per100} />
+              <Row
+                key={row.canonical_id}
+                row={row}
+                platforms={visiblePlatforms}
+                per100={per100}
+                history={history[row.canonical_key]}
+              />
             ))}
           </tbody>
         </table>
@@ -213,13 +277,14 @@ export default function App() {
   );
 }
 
-function Row({ row, platforms, per100 }) {
+function Row({ row, platforms, per100, history }) {
   return (
     <tr>
       <td className="sticky namecell">
         <div className="name">
           {row.display_name}
           {row.review_needed && <span className="badge review" title="Match tentativo, en revisión">?</span>}
+          <Sparkline points={history} />
         </div>
         <div className="meta">
           {[variantLabel(row.variant_slug), row.volume_ml && `${row.volume_ml}ml`, row.container, row.pack_qty > 1 && `pack x${row.pack_qty}`]

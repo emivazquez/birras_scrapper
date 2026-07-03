@@ -39,6 +39,23 @@ def _variants_compatible(a: str, b: str) -> bool:
     return a == b or a == "unknown" or b == "unknown"
 
 
+def _canonical_key(rep: dict, container: str | None) -> str:
+    """Clave de identidad ESTABLE entre corridas (para unir historial de precios).
+
+    Determinística a partir de la identidad normalizada, no del índice de corrida.
+    """
+    return "|".join(
+        [
+            rep["brand_slug"],
+            rep["variant_slug"],
+            str(rep["volume_ml_canon"] or ""),
+            container or "",
+            str(rep["pack_qty"]),
+            "z" if rep.get("is_zero") else "",
+        ]
+    )
+
+
 def assign_canonicals(offers: list[dict]) -> list[dict]:
     """Setea offer['canonical_id'] y devuelve la lista de canónicos."""
     n = len(offers)
@@ -96,12 +113,15 @@ def assign_canonicals(offers: list[dict]) -> list[dict]:
         rep = _pick_representative(member_offers)
         gtin = next((o["gtin_norm"] for o in member_offers if o["gtin_norm"]), "")
         container = next((o["container"] for o in member_offers if o["container"]), None)
+        ckey = _canonical_key(rep, container)
         for m in members:
             offers[m]["canonical_id"] = cid
+            offers[m]["canonical_key"] = ckey
         method, review = _link_method(member_offers)
         canonicals.append(
             {
                 "canonical_id": cid,
+                "canonical_key": ckey,
                 "brand_slug": rep["brand_slug"],
                 "brand_display": rep["brand_display"],
                 "variant_slug": rep["variant_slug"],

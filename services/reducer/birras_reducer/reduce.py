@@ -106,6 +106,7 @@ def build_matrix(canonicals: list[dict], offers: list[dict]) -> list[dict]:
                     k: c[k]
                     for k in (
                         "canonical_id",
+                        "canonical_key",
                         "brand_display",
                         "variant_slug",
                         "volume_ml",
@@ -128,14 +129,18 @@ def build_matrix(canonicals: list[dict], offers: list[dict]) -> list[dict]:
     return rows
 
 
-def write_matrix_json(matrix, platforms, ref_address, out_dir: Path) -> Path:
+def run_timestamp() -> str:
     import datetime as _dt
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    path = out_dir / "matrix_latest.json"
-    generated_at = (
+    return (
         _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     )
+
+
+def write_matrix_json(matrix, platforms, ref_address, out_dir: Path, generated_at=None) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "matrix_latest.json"
+    generated_at = generated_at or run_timestamp()
     path.write_text(
         json.dumps(
             {
@@ -197,7 +202,12 @@ def write_matrix_csv(matrix, platforms, out_dir: Path) -> Path:
     return path
 
 
-def persist_history(offers, db_path: Path) -> int:
+def persist_history(offers, db_path: Path, run_ts: str) -> int:
+    """Guarda las observaciones de precio de esta corrida (append-only).
+
+    Se indexa por canonical_key (identidad ESTABLE) + run_ts, para poder unir
+    el historial entre corridas y armar sparklines.
+    """
     try:
         import duckdb
     except ImportError:
@@ -205,27 +215,53 @@ def persist_history(offers, db_path: Path) -> int:
     con = duckdb.connect(str(db_path))
     con.execute(
         """CREATE TABLE IF NOT EXISTS price_observations(
-             platform VARCHAR, external_product_id VARCHAR, canonical_id INTEGER,
-             scraped_at VARCHAR, precio_actual DOUBLE, precio_anterior DOUBLE,
-             descuento_pct DOUBLE, precio_por_100ml DOUBLE, stock INTEGER)"""
+             canonical_key VARCHAR, platform VARCHAR, external_product_id VARCHAR,
+             run_ts VARCHAR, precio_actual DOUBLE, descuento_pct DOUBLE,
+             precio_por_100ml DOUBLE, stock INTEGER)"""
     )
     rows = [
         (
+            o.get("canonical_key", ""),
             o["platform"],
             o["external_product_id"],
-            o["canonical_id"],
-            o["scraped_at"],
+            run_ts,
             o["precio_actual"],
-            o["precio_anterior"],
             o["descuento_pct"],
             o["precio_por_100ml"],
             o["stock"],
         )
         for o in offers
     ]
-    con.executemany("INSERT INTO price_observations VALUES (?,?,?,?,?,?,?,?,?)", rows)
+    con.executemany("INSERT INTO price_observations VALUES (?,?,?,?,?,?,?,?)", rows)
     con.close()
     return len(rows)
+
+
+def build_history_json(db_path: Path, out_dir: Path, max_points: int = 60) -> Path | None:
+    """Publica history.json: por canonical_key, la serie del precio MÍNIMO
+    disponible en cada corrida (para las sparklines de la SPA).
+    """
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    con = duckdb.connect(str(db_path))
+    q = """
+        SELECT canonical_key, run_ts, MIN(precio_actual) AS p
+        FROM price_observations
+        WHERE precio_actual > 0 AND stock > 0 AND canonical_key <> ''
+        GROUP BY canonical_key, run_ts
+        ORDER BY canonical_key, run_ts
+    """
+    series: dict[str, list] = {}
+    for ckey, run_ts, p in con.execute(q).fetchall():
+        series.setdefault(ckey, []).append([run_ts, round(p, 2)])
+    con.close()
+    # limitar a las últimas N corridas por cerveza
+    series = {k: v[-max_points:] for k, v in series.items() if len(v) >= 2}
+    path = out_dir / "history.json"
+    path.write_text(json.dumps(series, ensure_ascii=False), encoding="utf-8")
+    return path
 
 
 def reduce(raw_dir, out_dir, db_path=None, ref_address="Austria 2001, CABA") -> dict:
@@ -237,10 +273,15 @@ def reduce(raw_dir, out_dir, db_path=None, ref_address="Austria 2001, CABA") -> 
     canonicals = assign_canonicals(offers)
     platforms = sorted({o["platform"] for o in offers})
     matrix = build_matrix(canonicals, offers)
+    generated_at = run_timestamp()
 
-    json_path = write_matrix_json(matrix, platforms, ref_address, out_dir)
+    json_path = write_matrix_json(matrix, platforms, ref_address, out_dir, generated_at)
     csv_path = write_matrix_csv(matrix, platforms, out_dir)
-    n_hist = persist_history(offers, Path(db_path)) if db_path else 0
+    n_hist = 0
+    hist_path = None
+    if db_path:
+        n_hist = persist_history(offers, Path(db_path), generated_at)
+        hist_path = build_history_json(Path(db_path), out_dir)
 
     return {
         "platforms": platforms,
@@ -249,6 +290,7 @@ def reduce(raw_dir, out_dir, db_path=None, ref_address="Austria 2001, CABA") -> 
         "comparables": sum(1 for r in matrix if r["n_platforms"] > 1),
         "json": str(json_path),
         "csv": str(csv_path),
+        "history": str(hist_path) if hist_path else None,
         "history_rows": n_hist,
         "matrix": matrix,
     }

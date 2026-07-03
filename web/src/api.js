@@ -4,6 +4,7 @@ const API_BASE = (typeof window !== "undefined" && window.__BIRRAS_API__) || "/a
 
 // La matriz es un archivo estático servido por el CDN (lecturas gratis).
 export const MATRIX_URL = "/published/matrix_latest.json";
+export const HISTORY_URL = "/published/history.json";
 export const CSV_URL = "/published/matrix_latest.csv";
 export const JSON_URL = "/published/matrix_latest.json";
 
@@ -11,6 +12,15 @@ export async function fetchMatrix() {
   const r = await fetch(MATRIX_URL, { cache: "no-store" });
   if (!r.ok) throw new Error(`No pude cargar la matriz (${r.status})`);
   return r.json();
+}
+
+export async function fetchHistory() {
+  try {
+    const r = await fetch(HISTORY_URL, { cache: "no-store" });
+    return r.ok ? r.json() : {};
+  } catch {
+    return {}; // el historial es opcional; si no está, no rompe
+  }
 }
 
 export async function triggerRefresh() {

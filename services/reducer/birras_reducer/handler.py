@@ -21,12 +21,14 @@ from pathlib import Path
 
 from .reduce import (
     assign_canonicals,
+    build_history_json,
     build_matrix,
     build_offers,
+    persist_history,
+    run_timestamp,
     write_matrix_csv,
     write_matrix_json,
 )
-from .reduce import persist_history
 
 _TMP = Path("/tmp/birras")
 _RAW = _TMP / "raw"
@@ -85,23 +87,28 @@ def handler(event: dict, context=None) -> dict:
 
     canonicals = assign_canonicals(offers)
     matrix = build_matrix(canonicals, offers)
+    generated_at = run_timestamp()
 
-    json_path = write_matrix_json(matrix, platforms, ref_address, _PUB)
+    json_path = write_matrix_json(matrix, platforms, ref_address, _PUB, generated_at)
     csv_path = write_matrix_csv(matrix, platforms, _PUB)
 
-    # historial en DuckDB (baja/sube el archivo del bucket)
+    # historial en DuckDB (baja/sube el archivo del bucket) + history.json
     s3 = _s3()
     db_local = _TMP / "catalog.duckdb"
     try:
         s3.download_file(pub_bucket, "catalog.duckdb", str(db_local))
     except Exception:  # noqa: BLE001 — primera corrida: no existe aún
         pass
-    n_hist = persist_history(offers, db_local)
+    n_hist = persist_history(offers, db_local, generated_at)
+    history_path = build_history_json(db_local, _PUB)
     if db_local.exists():
         s3.upload_file(str(db_local), pub_bucket, "catalog.duckdb")
 
     # publicar artefactos que sirve el dashboard
-    for path, ct in ((json_path, "application/json"), (csv_path, "text/csv")):
+    artifacts = [(json_path, "application/json"), (csv_path, "text/csv")]
+    if history_path:
+        artifacts.append((history_path, "application/json"))
+    for path, ct in artifacts:
         s3.upload_file(
             str(path),
             pub_bucket,
