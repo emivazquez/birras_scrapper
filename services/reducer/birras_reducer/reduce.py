@@ -10,6 +10,7 @@ import io
 import json
 import os
 from pathlib import Path
+from statistics import median
 
 from .match import assign_canonicals
 from .normalize import normalize_offer
@@ -94,6 +95,16 @@ def build_matrix(canonicals: list[dict], offers: list[dict]) -> list[dict]:
             for plat, cell in cells.items()
             if cell["disponible"] and cell["precio_actual"]
         }
+        # Guard anti-outlier: con >=3 precios, un valor <45% de la mediana es casi
+        # seguro data corrupta (p.ej. productos rotos de Coto/VTEX). Se marca
+        # 'sospechoso' y se excluye del cálculo de "mejor"/ahorro (pero se muestra).
+        if len(disponibles) >= 3:
+            med = median(disponibles.values())
+            floor = 0.45 * med
+            suspect = {p for p, v in disponibles.items() if v < floor}
+            for p in suspect:
+                cells[p]["suspect"] = True
+            disponibles = {p: v for p, v in disponibles.items() if p not in suspect}
         mejor = min(disponibles, key=disponibles.get) if disponibles else None
         ahorro = (
             round(max(disponibles.values()) - min(disponibles.values()), 2)

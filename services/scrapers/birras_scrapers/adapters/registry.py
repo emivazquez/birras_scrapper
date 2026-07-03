@@ -7,6 +7,7 @@ comparten una sola instancia de VtexAdapter (se parametriza por store config).
 from __future__ import annotations
 
 from .base import Adapter
+from .coto import ConstructorIoAdapter
 from .pedidosya import PedidosYaAdapter
 from .rappi import RappiAdapter
 from .vtex import VtexAdapter
@@ -22,6 +23,8 @@ _ADAPTERS: dict[str, Adapter] = {
     "disco": _vtex,
     "vea": _vtex,
     "dia": _vtex,
+    # Coto (Constructor.io)
+    "coto": ConstructorIoAdapter(),
 }
 
 

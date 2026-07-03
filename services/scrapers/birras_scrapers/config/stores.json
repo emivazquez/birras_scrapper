@@ -82,6 +82,18 @@
         "category_path": "bebidas/cervezas",
         "max_products": 500
       }
+    },
+    {
+      "platform": "coto",
+      "external_store_id": "coto-ar",
+      "store_name": "Coto",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "cnstrc_key": "key_41VWjhgxyQGjBiyf",
+        "query": "cerveza",
+        "max_products": 400
+      }
     }
   ]
 }

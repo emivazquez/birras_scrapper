@@ -298,7 +298,11 @@ function Row({ row, platforms, per100, history }) {
         if (!c) return <td key={p} className="cell empty">—</td>;
         const best = row.mejor === p && row.n_platforms > 1;
         return (
-          <td key={p} className={`cell ${best ? "best" : ""} ${!c.disponible ? "oos" : ""}`}>
+          <td
+            key={p}
+            className={`cell ${best ? "best" : ""} ${!c.disponible ? "oos" : ""} ${c.suspect ? "suspect" : ""}`}
+            title={c.suspect ? "Precio atípico (posible dato erróneo en la tienda)" : undefined}
+          >
             {!c.disponible ? (
               <span className="oostag">sin stock</span>
             ) : (
@@ -306,6 +310,7 @@ function Row({ row, platforms, per100, history }) {
                 <div className="price">
                   {best && <span className="dot">●</span>}
                   {per100 ? money(c.precio_por_100ml) : money(c.precio_actual)}
+                  {c.suspect && <span className="warn">⚠</span>}
                   {per100 && <span className="unit">/100ml</span>}
                 </div>
                 {c.descuento_pct > 0 && (
