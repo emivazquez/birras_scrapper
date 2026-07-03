@@ -31,6 +31,19 @@ python -m birras_scrapers.run_local pedidosya      # uno solo
 
 Los resultados crudos se escriben en `data/raw/{plataforma}/{timestamp}.json`.
 
+## Deploy
+
+Automático: cada push a `main` dispara [.github/workflows/deploy.yml](.github/workflows/deploy.yml),
+que corre `terraform apply` (infra + Lambdas) + build/sync de la SPA, autenticando
+por OIDC (sin llaves). State de Terraform en S3.
+
+Manual (local, con sesión SSO `production`):
+```bash
+cd infra && terraform apply
+```
+
 ## Estado
 
-Fase 0 — cimientos. Ver el roadmap por fases en [PLAN.md](PLAN.md#11-roadmap-por-fases).
+**En producción, 7 ecommerces** (PedidosYa, Rappi, Carrefour, Jumbo, Disco, Vea, Día),
+scraping automático cada 2h, matriz comparativa con historial, refresh on-demand y
+export CSV/JSON. Ver el roadmap por fases en [PLAN.md](PLAN.md#11-roadmap-por-fases).
