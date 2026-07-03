@@ -1,0 +1,4 @@
+# Motor analítico embebido (matching + pivot + store de historial), escala a cero.
+duckdb>=1.1
+# Fuzzy matching (token_set_ratio, trigram) en C, rápido. Wheels manylinux aarch64.
+rapidfuzz>=3.0
