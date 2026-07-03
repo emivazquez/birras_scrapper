@@ -1,0 +1,27 @@
+{
+  "reference_address": "Austria 2001, CABA",
+  "stores": [
+    {
+      "platform": "pedidosya",
+      "external_store_id": "356102",
+      "store_name": "PedidosYa Market - Barrio Norte",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "vendor_id": 356102,
+        "category_ids": ["a63c106c-83de-4c01-909e-d30d24d8da85"]
+      }
+    },
+    {
+      "platform": "rappi",
+      "external_store_id": "231868",
+      "store_name": "Turbo Recoleta",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "store_id": 231868,
+        "subaisles": ["nuevos", "cervezas-rubias", "cervezas-rojas", "cervezas-negras", "packs"]
+      }
+    }
+  ]
+}

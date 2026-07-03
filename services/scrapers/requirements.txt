@@ -1,0 +1,3 @@
+# Cliente HTTP con impersonación TLS de Chrome (pasa el Cloudflare Bot Mgmt
+# de PedidosYa sin browser). Trae wheels manylinux (x86_64 y aarch64) para Lambda.
+curl_cffi>=0.7

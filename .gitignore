@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Datos locales (raw scrapes, DBs, exports)
+data/
+*.duckdb
+*.duckdb.wal
+
+# Terraform
+infra/**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# Build artefacts de Lambda
+*.zip
+dist/
+build/
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
