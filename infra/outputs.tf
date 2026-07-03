@@ -16,3 +16,16 @@ output "jobs_table" {
 output "account_id" {
   value = local.account_id
 }
+
+output "state_machine_arn" {
+  description = "Máquina de estados del pipeline"
+  value       = aws_sfn_state_machine.pipeline.arn
+}
+
+output "scrapers_lambda" {
+  value = module.scrapers_lambda.lambda_function_name
+}
+
+output "reducer_lambda" {
+  value = module.reducer_lambda.lambda_function_name
+}
