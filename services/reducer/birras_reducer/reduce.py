@@ -129,12 +129,18 @@ def build_matrix(canonicals: list[dict], offers: list[dict]) -> list[dict]:
 
 
 def write_matrix_json(matrix, platforms, ref_address, out_dir: Path) -> Path:
+    import datetime as _dt
+
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "matrix_latest.json"
+    generated_at = (
+        _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    )
     path.write_text(
         json.dumps(
             {
                 "reference_address": ref_address,
+                "generated_at": generated_at,
                 "platforms": platforms,
                 "total_canonicos": len(matrix),
                 "comparables": sum(1 for r in matrix if r["n_platforms"] > 1),

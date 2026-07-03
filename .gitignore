@@ -29,6 +29,8 @@ build/
 # Frontend
 web/node_modules/
 web/dist/
+web/public/published/
+.claude/launch.json
 
 # OS / editor
 .DS_Store
