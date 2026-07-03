@@ -21,6 +21,7 @@ from pathlib import Path
 
 from .reduce import (
     assign_canonicals,
+    build_history_detail_json,
     build_history_json,
     build_matrix,
     build_offers,
@@ -101,13 +102,15 @@ def handler(event: dict, context=None) -> dict:
         pass
     n_hist = persist_history(offers, db_local, generated_at)
     history_path = build_history_json(db_local, _PUB)
+    history_detail_path = build_history_detail_json(db_local, _PUB)
     if db_local.exists():
         s3.upload_file(str(db_local), pub_bucket, "catalog.duckdb")
 
     # publicar artefactos que sirve el dashboard
     artifacts = [(json_path, "application/json"), (csv_path, "text/csv")]
-    if history_path:
-        artifacts.append((history_path, "application/json"))
+    for extra in (history_path, history_detail_path):
+        if extra:
+            artifacts.append((extra, "application/json"))
     for path, ct in artifacts:
         s3.upload_file(
             str(path),

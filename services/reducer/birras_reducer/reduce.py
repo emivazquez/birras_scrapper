@@ -275,6 +275,37 @@ def build_history_json(db_path: Path, out_dir: Path, max_points: int = 60) -> Pa
     return path
 
 
+def build_history_detail_json(db_path: Path, out_dir: Path, max_runs: int = 48) -> Path | None:
+    """Publica history_detail.json: por canonical_key, una serie de precio POR
+    PLATAFORMA (para el gráfico de detalle, una línea por ecommerce).
+    Capado a las últimas `max_runs` corridas por plataforma.
+    """
+    try:
+        import duckdb
+    except ImportError:
+        return None
+    con = duckdb.connect(str(db_path))
+    q = """
+        SELECT canonical_key, platform, run_ts, MIN(precio_actual) AS p
+        FROM price_observations
+        WHERE precio_actual > 0 AND stock > 0 AND canonical_key <> ''
+        GROUP BY canonical_key, platform, run_ts
+        ORDER BY canonical_key, platform, run_ts
+    """
+    detail: dict[str, dict[str, list]] = {}
+    for ckey, platform, run_ts, p in con.execute(q).fetchall():
+        detail.setdefault(ckey, {}).setdefault(platform, []).append([run_ts, round(p, 2)])
+    con.close()
+    out = {}
+    for ckey, plats in detail.items():
+        trimmed = {pl: pts[-max_runs:] for pl, pts in plats.items()}
+        if sum(len(v) for v in trimmed.values()) >= 2:
+            out[ckey] = trimmed
+    path = out_dir / "history_detail.json"
+    path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
 def reduce(raw_dir, out_dir, db_path=None, ref_address="Austria 2001, CABA") -> dict:
     raw_dir, out_dir = Path(raw_dir), Path(out_dir)
     raw = load_latest_raw(raw_dir)
@@ -293,6 +324,7 @@ def reduce(raw_dir, out_dir, db_path=None, ref_address="Austria 2001, CABA") -> 
     if db_path:
         n_hist = persist_history(offers, Path(db_path), generated_at)
         hist_path = build_history_json(Path(db_path), out_dir)
+        build_history_detail_json(Path(db_path), out_dir)
 
     return {
         "platforms": platforms,

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   fetchMatrix,
   fetchHistory,
+  fetchHistoryDetail,
   triggerRefresh,
   fetchStatus,
   CSV_URL,
@@ -10,6 +11,89 @@ import {
 
 const money = (n) =>
   n == null ? "" : "$" + Number(n).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+
+// Paleta estable por ecommerce (para las líneas del gráfico de historial).
+const PALETTE = ["#f5a623", "#2ecc71", "#4aa3ff", "#e056a0", "#9b59b6", "#1abc9c", "#ff6b6b", "#c8cf3a"];
+const platColor = (p, all) => PALETTE[Math.max(0, all.indexOf(p)) % PALETTE.length];
+
+function HistoryChart({ series, allPlatforms }) {
+  const plats = Object.keys(series || {});
+  if (!plats.length) return <div className="nohist">Todavía no hay historial suficiente para esta cerveza.</div>;
+
+  // eje x = unión de timestamps ordenada; y = precio
+  const tset = new Set();
+  plats.forEach((p) => series[p].forEach(([t]) => tset.add(t)));
+  const times = [...tset].sort();
+  const tIndex = new Map(times.map((t, i) => [t, i]));
+  const prices = plats.flatMap((p) => series[p].map(([, v]) => v));
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const span = max - min || 1;
+
+  const W = 520, H = 240, PAD = 44;
+  const x = (t) => (times.length < 2 ? W / 2 : PAD + (tIndex.get(t) / (times.length - 1)) * (W - PAD - 12));
+  const y = (v) => H - 28 - ((v - min) / span) * (H - 28 - 14);
+
+  return (
+    <div>
+      <svg className="histchart" viewBox={`0 0 ${W} ${H}`} width="100%">
+        {/* ejes y labels de precio */}
+        <line x1={PAD} y1={14} x2={PAD} y2={H - 28} stroke="var(--line)" />
+        <line x1={PAD} y1={H - 28} x2={W - 12} y2={H - 28} stroke="var(--line)" />
+        <text x={PAD - 6} y={18} textAnchor="end" className="axis">{money(max)}</text>
+        <text x={PAD - 6} y={H - 28} textAnchor="end" className="axis">{money(min)}</text>
+        {plats.map((p) => (
+          <polyline
+            key={p}
+            fill="none"
+            stroke={platColor(p, allPlatforms)}
+            strokeWidth="2"
+            points={series[p].map(([t, v]) => `${x(t).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}
+          />
+        ))}
+        {plats.map((p) =>
+          series[p].map(([t, v], i) => (
+            <circle key={p + i} cx={x(t)} cy={y(v)} r="2.5" fill={platColor(p, allPlatforms)} />
+          )),
+        )}
+      </svg>
+      <div className="legend">
+        {plats.map((p) => (
+          <span key={p} className="lg">
+            <span className="sw" style={{ background: platColor(p, allPlatforms) }} />
+            {p} <b>{money(series[p][series[p].length - 1][1])}</b>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DetailModal({ row, series, allPlatforms, onClose }) {
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modalhead">
+          <div>
+            <h3>{row.display_name}</h3>
+            <div className="meta">
+              {[variantLabel(row.variant_slug), row.volume_ml && `${row.volume_ml}ml`, row.container]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
+          </div>
+          <button className="btn ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="modalsub">Evolución del precio por ecommerce</div>
+        {series === undefined ? (
+          <div className="nohist">Cargando historial…</div>
+        ) : (
+          <HistoryChart series={series} allPlatforms={allPlatforms} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 function useMediaQuery(query) {
   const [matches, setMatches] = useState(
@@ -90,6 +174,13 @@ export default function App() {
   const [per100, setPer100] = useState(false);
   const [sort, setSort] = useState("default");
   const [visibleCount, setVisibleCount] = useState(150); // render incremental
+  const [detail, setDetail] = useState(null); // fila seleccionada para el gráfico
+  const [hdetail, setHdetail] = useState(null); // historial por-plataforma (lazy)
+
+  const openDetail = (row) => {
+    setDetail(row);
+    if (hdetail === null) fetchHistoryDetail().then(setHdetail);
+  };
 
   const load = () =>
     Promise.all([fetchMatrix(), fetchHistory()])
@@ -284,6 +375,7 @@ export default function App() {
               row={row}
               platforms={visiblePlatforms}
               per100={per100}
+              onOpen={openDetail}
             />
           ))}
         </div>
@@ -307,11 +399,21 @@ export default function App() {
                   platforms={visiblePlatforms}
                   per100={per100}
                   history={history[row.canonical_key]}
+                  onOpen={openDetail}
                 />
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {detail && (
+        <DetailModal
+          row={detail}
+          series={hdetail ? hdetail[detail.canonical_key] || {} : undefined}
+          allPlatforms={platforms}
+          onClose={() => setDetail(null)}
+        />
       )}
       <footer>
         Precios de referencia para {data.reference_address}. Solo comparación; verificá en cada tienda antes de comprar.
@@ -320,7 +422,7 @@ export default function App() {
   );
 }
 
-function Card({ row, platforms, per100 }) {
+function Card({ row, platforms, per100, onOpen }) {
   const entries = platforms.map((p) => ({ p, c: row.precios[p] })).filter((e) => e.c);
   entries.sort((a, b) => {
     const av = a.c.disponible ? (per100 ? a.c.precio_por_100ml : a.c.precio_actual) : Infinity;
@@ -329,9 +431,9 @@ function Card({ row, platforms, per100 }) {
   });
   return (
     <div className="card">
-      <div className="cardhead">
+      <div className="cardhead clickable" onClick={() => onOpen(row)} title="Ver evolución de precios">
         <div className="name">
-          {row.display_name}
+          {row.display_name} <span className="chartico">📈</span>
           {row.review_needed && <span className="badge review" title="Match tentativo">?</span>}
         </div>
         <div className="meta">
@@ -364,10 +466,10 @@ function Card({ row, platforms, per100 }) {
   );
 }
 
-function Row({ row, platforms, per100, history }) {
+function Row({ row, platforms, per100, history, onOpen }) {
   return (
     <tr>
-      <td className="sticky namecell">
+      <td className="sticky namecell clickable" onClick={() => onOpen(row)} title="Ver evolución de precios">
         <div className="name">
           {row.display_name}
           {row.review_needed && <span className="badge review" title="Match tentativo, en revisión">?</span>}

@@ -75,6 +75,31 @@ body {
 
 .spark { margin-left: auto; flex-shrink: 0; opacity: 0.9; }
 
+.clickable { cursor: pointer; }
+.namecell.clickable:hover .name { color: var(--accent); }
+.chartico { font-size: 11px; opacity: 0.6; }
+
+/* Modal de detalle / gráfico de historial */
+.overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px;
+}
+.modal {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  padding: 18px; width: 100%; max-width: 620px; max-height: 90vh; overflow: auto;
+}
+.modalhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.modalhead h3 { margin: 0; font-size: 18px; }
+.modalhead .meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+.modalsub { color: var(--muted); font-size: 12px; margin: 12px 0 8px; }
+.histchart { display: block; }
+.histchart .axis { fill: var(--muted); font-size: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.lg { display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); text-transform: capitalize; }
+.lg b { color: var(--text); }
+.sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.nohist { color: var(--muted); font-size: 13px; padding: 24px 8px; text-align: center; }
+
 /* Table */
 .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
 table { border-collapse: collapse; width: 100%; min-width: 640px; }
