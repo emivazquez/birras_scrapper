@@ -159,6 +159,95 @@ function minPer100(row) {
   return vals.length ? Math.min(...vals) : Infinity;
 }
 
+const STD_SIZES = [269, 270, 330, 354, 355, 410, 473, 500, 600, 710, 730, 970, 1000];
+
+function configLabel(row) {
+  let per = row.volume_ml;
+  if (row.pack_qty > 1 && row.volume_ml) {
+    const u = row.volume_ml / row.pack_qty;
+    if (STD_SIZES.some((s) => Math.abs(s - u) <= 6)) per = Math.round(u);
+  }
+  const parts = [per ? `${per}cc` : "s/tamaño"];
+  if (row.container) parts.push(row.container);
+  if (row.pack_qty > 1) parts.push(`pack x${row.pack_qty}`);
+  return parts.join(" · ");
+}
+
+const modelLabel = (row) =>
+  !row.variant_slug || row.variant_slug === "unknown" ? "Clásica" : variantLabel(row.variant_slug);
+
+function ConfigRow({ row, platforms, onOpen }) {
+  const entries = platforms.map((p) => ({ p, c: row.precios[p] })).filter((e) => e.c);
+  entries.sort((a, b) => {
+    const av = a.c.disponible ? a.c.precio_actual : Infinity;
+    const bv = b.c.disponible ? b.c.precio_actual : Infinity;
+    return av - bv;
+  });
+  return (
+    <div className="crow">
+      <div className="clabel clickable" onClick={() => onOpen(row)} title="Ver evolución de precios">
+        {configLabel(row)}
+        {row.review_needed && <span className="badge review" title="Match tentativo">?</span>}
+        <span className="chartico">📈</span>
+      </div>
+      <div className="cprices">
+        {entries.map(({ p, c }) => {
+          const best = row.mejor === p && row.n_platforms > 1;
+          return (
+            <span key={p} className={`ptag ${best ? "best" : ""} ${c.suspect ? "suspect" : ""} ${!c.disponible ? "oos" : ""}`}>
+              <span className="pn">{p}</span>
+              {c.disponible ? <b>{money(c.precio_actual)}</b> : <i>s/stock</i>}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GroupedView({ tree, openBrands, openModels, toggleBrand, toggleModel, platforms, onOpen }) {
+  const brands = [...tree.keys()].sort((a, b) => a.localeCompare(b));
+  return (
+    <div className="grouped">
+      {brands.map((brand) => {
+        const models = tree.get(brand);
+        const nConfigs = [...models.values()].reduce((s, arr) => s + arr.length, 0);
+        const bOpen = openBrands.has(brand);
+        return (
+          <div className="gbrand" key={brand}>
+            <button className="ghead" onClick={() => toggleBrand(brand)}>
+              <span className="arrow">{bOpen ? "▾" : "▸"}</span>
+              <span className="gname">{brand}</span>
+              <span className="gcount">{models.size} modelo{models.size !== 1 ? "s" : ""} · {nConfigs} config.</span>
+            </button>
+            {bOpen &&
+              [...models.keys()].sort().map((model) => {
+                const rowsM = models.get(model);
+                const mKey = `${brand}|${model}`;
+                const mOpen = openModels.has(mKey);
+                return (
+                  <div className="gmodel" key={mKey}>
+                    <button className="ghead2" onClick={() => toggleModel(mKey)}>
+                      <span className="arrow">{mOpen ? "▾" : "▸"}</span>
+                      {model} <span className="gcount">{rowsM.length}</span>
+                    </button>
+                    {mOpen &&
+                      rowsM
+                        .slice()
+                        .sort((a, b) => (a.volume_ml || 0) - (b.volume_ml || 0) || a.pack_qty - b.pack_qty)
+                        .map((row) => (
+                          <ConfigRow key={row.canonical_id} row={row} platforms={platforms} onOpen={onOpen} />
+                        ))}
+                  </div>
+                );
+              })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
   const [data, setData] = useState(null);
   const [history, setHistory] = useState({});
@@ -176,11 +265,22 @@ export default function App() {
   const [visibleCount, setVisibleCount] = useState(150); // render incremental
   const [detail, setDetail] = useState(null); // fila seleccionada para el gráfico
   const [hdetail, setHdetail] = useState(null); // historial por-plataforma (lazy)
+  const [grouped, setGrouped] = useState(false); // vista agrupada marca→modelo→config
+  const [openBrands, setOpenBrands] = useState(() => new Set());
+  const [openModels, setOpenModels] = useState(() => new Set());
 
   const openDetail = (row) => {
     setDetail(row);
     if (hdetail === null) fetchHistoryDetail().then(setHdetail);
   };
+  const toggleIn = (setter) => (key) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  const toggleBrand = toggleIn(setOpenBrands);
+  const toggleModel = toggleIn(setOpenModels);
 
   const load = () =>
     Promise.all([fetchMatrix(), fetchHistory()])
@@ -247,6 +347,19 @@ export default function App() {
   const platforms = data?.platforms || [];
   const visiblePlatforms = platforms.filter((p) => !hidden.has(p));
   const isMobile = useMediaQuery("(max-width: 719px)");
+
+  const tree = useMemo(() => {
+    const t = new Map();
+    for (const r of rows) {
+      const brand = r.brand_display || "—";
+      const model = modelLabel(r);
+      if (!t.has(brand)) t.set(brand, new Map());
+      const mm = t.get(brand);
+      if (!mm.has(model)) mm.set(model, []);
+      mm.get(model).push(r);
+    }
+    return t;
+  }, [rows]);
 
   async function onRefresh() {
     setRefresh({ state: "running", msg: "Iniciando actualización…" });
@@ -351,6 +464,10 @@ export default function App() {
           <input type="checkbox" checked={per100} onChange={(e) => setPer100(e.target.checked)} />
           $/100ml
         </label>
+        <label className="chk">
+          <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
+          agrupar por marca
+        </label>
       </div>
 
       <div className="platforms">
@@ -367,7 +484,17 @@ export default function App() {
         ))}
       </div>
 
-      {isMobile ? (
+      {grouped ? (
+        <GroupedView
+          tree={tree}
+          openBrands={openBrands}
+          openModels={openModels}
+          toggleBrand={toggleBrand}
+          toggleModel={toggleModel}
+          platforms={visiblePlatforms}
+          onOpen={openDetail}
+        />
+      ) : isMobile ? (
         <div className="cards">
           {rows.slice(0, visibleCount).map((row) => (
             <Card
