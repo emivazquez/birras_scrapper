@@ -73,6 +73,10 @@ resource "aws_sfn_state_machine" "pipeline" {
         Next = "ScrapeAll"
       }
 
+      # Map INLINE: el aislamiento por adapter se hace con un Catch POR ITEM
+      # (ToleratedFailurePercentage no aplica a Map inline). Un adapter que falla
+      # cae a ScrapeItemFailed y el item termina OK -> el Map siempre completa y
+      # el reducer corre con lo que haya llegado.
       ScrapeAll = {
         Type      = "Map"
         ItemsPath = "$.stores"
@@ -80,7 +84,6 @@ resource "aws_sfn_state_machine" "pipeline" {
           "store.$"  = "$$.Map.Item.Value"
           "run_id.$" = "$.run_id"
         }
-        ToleratedFailurePercentage = 100
         ItemProcessor = {
           ProcessorConfig = { Mode = "INLINE" }
           StartAt         = "ScrapeOne"
@@ -94,20 +97,25 @@ resource "aws_sfn_state_machine" "pipeline" {
               }
               Retry = [{
                 ErrorEquals     = ["States.ALL"]
-                MaxAttempts     = 1
-                IntervalSeconds = 5
+                MaxAttempts     = 4
+                IntervalSeconds = 3
+                BackoffRate     = 2.0
+              }]
+              Catch = [{
+                ErrorEquals = ["States.ALL"]
+                ResultPath  = "$.error"
+                Next        = "ScrapeItemFailed"
               }]
               End = true
+            }
+            ScrapeItemFailed = {
+              Type = "Pass"
+              End  = true
             }
           }
         }
         ResultPath = "$.scrape_results"
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          ResultPath  = "$.error"
-          Next        = "ReleaseLockFail"
-        }]
-        Next = "Reduce"
+        Next       = "Reduce"
       }
 
       Reduce = {

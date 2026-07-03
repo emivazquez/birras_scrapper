@@ -68,8 +68,22 @@ def handler(event: dict, context=None) -> dict:
         return {"run_id": run_id, "error": "no raw snapshots for run"}
 
     offers = build_offers(raw)
-    canonicals = assign_canonicals(offers)
     platforms = sorted({o["platform"] for o in offers})
+
+    # Guard anti-degradación: si un adapter cayó (p.ej. Cloudflare 403 a PedidosYa
+    # desde la IP de AWS) y quedó una sola plataforma, NO republicar — dejamos la
+    # última matriz buena. El próximo run (o el cron) la recupera.
+    min_platforms = int(os.environ.get("BIRRAS_MIN_PLATFORMS", "2"))
+    if len(platforms) < min_platforms:
+        return {
+            "run_id": run_id,
+            "published": False,
+            "reason": "partial",
+            "platforms": platforms,
+            "offers": len(offers),
+        }
+
+    canonicals = assign_canonicals(offers)
     matrix = build_matrix(canonicals, offers)
 
     json_path = write_matrix_json(matrix, platforms, ref_address, _PUB)

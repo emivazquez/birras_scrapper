@@ -29,3 +29,20 @@ output "scrapers_lambda" {
 output "reducer_lambda" {
   value = module.reducer_lambda.lambda_function_name
 }
+
+output "web_bucket" {
+  value = aws_s3_bucket.web.bucket
+}
+
+output "dashboard_url" {
+  description = "URL del dashboard (CloudFront)"
+  value       = "https://${aws_cloudfront_distribution.cdn.domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  value = aws_cloudfront_distribution.cdn.id
+}
+
+output "api_endpoint" {
+  value = aws_apigatewayv2_api.api.api_endpoint
+}
