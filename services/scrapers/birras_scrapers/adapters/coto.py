@@ -5,6 +5,10 @@
 Cuidados (validados en recon 2026-07-03):
 - **Precio real = MEDIANA del `listPrice` por sucursal**, NO `product_list_price`
   (ese es el precio de lista, ~50-80% más alto → inflaría los precios de Coto).
+  La mediana = el precio que cobra la mayoría de las sucursales (incl. CABA); no
+  se puede fijar la sucursal CABA exacta porque Coto no expone las sucursales por
+  API pública (el listado es un SPA Angular sin datos server-side) y el orden de
+  stores no es consistente. La mediana es el mejor proxy CABA disponible.
 - Coto **no trae EAN** → matchea solo por estructura/fuzzy (como Rappi).
 - La búsqueda por texto "cerveza" incluye accesorios (tarros, vasos): se filtran.
 - Precios corruptos ocasionales (una 970cc a $153): se filtran por piso de $/100ml.

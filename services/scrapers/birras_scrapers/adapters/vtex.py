@@ -8,6 +8,12 @@ API pública de catálogo (sin login):
 - Paginación de a 50 (límite de VTEX); total en el header `resources: a-b/TOTAL`.
 - EAN poblado (ancla determinística para el matching con PedidosYa).
 
+PRECIO CABA (verificado 2026-07-03): el precio del catálogo es por BANNER
+(nacional), no por sucursal. Confirmado en Carrefour: el precio con el regionId
+de CABA (CP 1425) es idéntico al default. Cada banner tiene su propio precio
+(Jumbo != Disco) pero dentro del banner es el estándar -> el default que traemos
+ES el precio que vería un comprador en CABA. No hace falta setear región/sc.
+
 El code de plataforma (carrefour/jumbo/...) viene de store["platform"]; la misma
 instancia de VtexAdapter se registra bajo los 5 codes.
 """
