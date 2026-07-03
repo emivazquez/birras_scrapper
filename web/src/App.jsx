@@ -76,6 +76,7 @@ export default function App() {
   const [onlyDeal, setOnlyDeal] = useState(false);
   const [per100, setPer100] = useState(false);
   const [sort, setSort] = useState("default");
+  const [visibleCount, setVisibleCount] = useState(150); // render incremental
 
   const load = () =>
     Promise.all([fetchMatrix(), fetchHistory()])
@@ -126,6 +127,18 @@ export default function App() {
     }[sort];
     return r.sort(cmp);
   }, [data, q, brand, size, onlyComparable, onlyDeal, sort]);
+
+  // Render incremental: reseteo al cambiar los filtros, sumo al scrollear cerca del fondo.
+  useEffect(() => setVisibleCount(150), [rows]);
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerHeight + window.scrollY > document.body.offsetHeight - 900) {
+        setVisibleCount((v) => v + 200);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const platforms = data?.platforms || [];
   const visiblePlatforms = platforms.filter((p) => !hidden.has(p));
@@ -189,7 +202,10 @@ export default function App() {
       <div className="stats">
         <span><b>{data.total_canonicos}</b> cervezas</span>
         <span><b>{data.comparables}</b> comparables</span>
-        <span>{rows.length} en la vista</span>
+        <span>
+          {rows.length === data.total_canonicos ? "" : `${rows.length} filtradas · `}
+          mostrando {Math.min(visibleCount, rows.length)} de {rows.length}
+        </span>
       </div>
 
       <div className="filters">
@@ -258,7 +274,7 @@ export default function App() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows.slice(0, visibleCount).map((row) => (
               <Row
                 key={row.canonical_id}
                 row={row}
