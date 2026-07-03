@@ -22,6 +22,66 @@
         "store_id": 231868,
         "subaisles": ["nuevos", "cervezas-rubias", "cervezas-rojas", "cervezas-negras", "packs"]
       }
+    },
+    {
+      "platform": "carrefour",
+      "external_store_id": "carrefour-ar",
+      "store_name": "Carrefour",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "base_url": "https://www.carrefour.com.ar",
+        "category_path": "bebidas/cervezas",
+        "max_products": 500
+      }
+    },
+    {
+      "platform": "jumbo",
+      "external_store_id": "jumbo-ar",
+      "store_name": "Jumbo",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "base_url": "https://www.jumbo.com.ar",
+        "category_path": "bebidas/cervezas",
+        "max_products": 500
+      }
+    },
+    {
+      "platform": "disco",
+      "external_store_id": "disco-ar",
+      "store_name": "Disco",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "base_url": "https://www.disco.com.ar",
+        "category_path": "bebidas/cervezas",
+        "max_products": 500
+      }
+    },
+    {
+      "platform": "vea",
+      "external_store_id": "vea-ar",
+      "store_name": "Vea",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "base_url": "https://www.vea.com.ar",
+        "category_path": "bebidas/cervezas",
+        "max_products": 500
+      }
+    },
+    {
+      "platform": "dia",
+      "external_store_id": "dia-ar",
+      "store_name": "Día",
+      "direccion": "Austria 2001, CABA",
+      "active": true,
+      "config": {
+        "base_url": "https://diaonline.supermercadosdia.com.ar",
+        "category_path": "bebidas/cervezas",
+        "max_products": 500
+      }
     }
   ]
 }
