@@ -36,3 +36,6 @@ web/public/published/
 .DS_Store
 .idea/
 .vscode/
+
+# Artefactos de build del módulo terraform-aws-lambda
+infra/builds/
