@@ -1,0 +1,59 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_VAR_aws_profile: "" # en CI las credenciales vienen por OIDC, no por profile
+
+jobs:
+  deploy:
+    # Runner arm64 nativo: el build Docker de las Lambdas (arm64) es nativo, sin QEMU.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar credenciales AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::078927551363:role/birras-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.4"
+          terraform_wrapper: false
+
+      - name: Terraform apply (infra + Lambdas)
+        working-directory: infra
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build SPA
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy SPA (S3 + invalidación CloudFront)
+        run: |
+          WEB_BUCKET=$(terraform -chdir=infra output -raw web_bucket)
+          DIST_ID=$(terraform -chdir=infra output -raw cloudfront_distribution_id)
+          aws s3 sync web/dist "s3://$WEB_BUCKET/" --delete --exclude "published/*"
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"

@@ -33,3 +33,9 @@ variable "python_runtime" {
   type        = string
   default     = "python3.13"
 }
+
+variable "github_repo" {
+  description = "owner/repo habilitado para asumir el rol de deploy vía OIDC"
+  type        = string
+  default     = "emivazquez/birras_scrapper"
+}
