@@ -51,6 +51,7 @@ body {
 .banner.done { background: var(--green-bg); color: var(--green); }
 .banner.error { background: #2a1b1b; color: var(--red); }
 .banner.warn { background: #2b2413; color: var(--accent); border: 1px solid #4a3d1a; }
+.banner.info { background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
 
 .stats { display: flex; gap: 18px; color: var(--muted); font-size: 13px; margin-bottom: 12px; }
 .stats b { color: var(--text); }

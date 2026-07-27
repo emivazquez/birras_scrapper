@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.birras.scraper</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/lockdown/Documents/code/birras_scrapper/scripts/scrape_local.sh</string>
+        <string>pedidosya</string>
+    </array>
+
+    <!-- cada 2 horas, alineado con el cron de la nube -->
+    <key>StartInterval</key>
+    <integer>7200</integer>
+
+    <!-- corre una vez al cargarse (y si la Mac estuvo dormida, al despertar) -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/lockdown/Documents/code/birras_scrapper/data/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lockdown/Documents/code/birras_scrapper/data/launchd.err.log</string>
+</dict>
+</plist>

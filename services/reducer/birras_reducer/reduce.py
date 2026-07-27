@@ -278,7 +278,12 @@ def build_history_json(db_path: Path, out_dir: Path, max_points: int = 60) -> Pa
     return path
 
 
-def platform_health(expected: list[str], present: list[str], db_path: Path | None) -> list[dict]:
+def platform_health(
+    expected: list[str],
+    present: list[str],
+    db_path: Path | None,
+    stale: dict[str, str] | None = None,
+) -> list[dict]:
     """Estado por plataforma: cuáles llegaron en esta corrida y cuáles no.
 
     Para las que faltan, busca en el historial cuándo fue la última vez que
@@ -299,11 +304,22 @@ def platform_health(expected: list[str], present: list[str], db_path: Path | Non
         except Exception:  # noqa: BLE001 — el health nunca debe romper la corrida
             last_seen = {}
 
+    stale = stale or {}
     present_set = set(present)
     out = []
     for p in sorted(set(expected) | present_set):
         ok = p in present_set
-        out.append({"platform": p, "ok": ok, "last_seen": None if ok else last_seen.get(p)})
+        out.append(
+            {
+                "platform": p,
+                "ok": ok,
+                # 'stale' = llegó, pero de una corrida anterior (p.ej. scraper local
+                # que corre en otra máquina): el precio es real pero no de ahora
+                "stale": p in stale,
+                "captured_at": stale.get(p),
+                "last_seen": None if ok else last_seen.get(p),
+            }
+        )
     return out
 
 

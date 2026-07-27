@@ -348,7 +348,9 @@ export default function App() {
 
   const platforms = data?.platforms || [];
   const visiblePlatforms = platforms.filter((p) => !hidden.has(p));
-  const down = (data?.platform_health || []).filter((h) => !h.ok);
+  const health = data?.platform_health || [];
+  const down = health.filter((h) => !h.ok);
+  const stalePlats = health.filter((h) => h.ok && h.stale);
   const isMobile = useMediaQuery("(max-width: 719px)");
 
   const tree = useMemo(() => {
@@ -426,6 +428,13 @@ export default function App() {
           <b style={{ textTransform: "capitalize" }}>{down.map((d) => d.platform).join(", ")}</b>
           {down[0].last_seen ? ` — último dato ${relativeTime(down[0].last_seen)}` : ""}. Los precios
           de {down.length > 1 ? "esas tiendas" : "esa tienda"} no se están comparando.
+        </div>
+      )}
+
+      {stalePlats.length > 0 && (
+        <div className="banner info">
+          ⏱ <b style={{ textTransform: "capitalize" }}>{stalePlats.map((s) => s.platform).join(", ")}</b>:
+          precios de {relativeTime(stalePlats[0].captured_at)} (se actualiza por separado).
         </div>
       )}
 

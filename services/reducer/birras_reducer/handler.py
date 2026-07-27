@@ -59,6 +59,44 @@ def _download_run_raw(bucket: str, run_id: str) -> dict[str, dict]:
     return raw_by_platform
 
 
+def _age_hours(iso_ts: str | None) -> float:
+    """Antigüedad en horas de un timestamp ISO-8601 (Z). Infinito si no parsea."""
+    if not iso_ts:
+        return float("inf")
+    import datetime as dt
+
+    try:
+        t = dt.datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+    except ValueError:
+        return float("inf")
+    return (dt.datetime.now(dt.timezone.utc) - t).total_seconds() / 3600
+
+
+def _latest_raw_for_platform(bucket: str, platform: str) -> dict | None:
+    """Raw más reciente de una plataforma, sin importar de qué corrida vino.
+
+    Permite que un adapter corra fuera del pipeline (p.ej. PedidosYa desde una
+    máquina con IP residencial, porque Cloudflare bloquea las IPs de AWS) y que
+    el reducer igual lo incorpore.
+    """
+    s3 = _s3()
+    newest = None
+    paginator = s3.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=f"raw/{platform}/"):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".json") and (
+                newest is None or obj["LastModified"] > newest["LastModified"]
+            ):
+                newest = obj
+    if not newest:
+        return None
+    body = s3.get_object(Bucket=bucket, Key=newest["Key"])["Body"].read()
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        return None
+
+
 def handler(event: dict, context=None) -> dict:
     run_id = event["run_id"]
     raw_bucket = os.environ["BIRRAS_RAW_BUCKET"]
@@ -71,10 +109,26 @@ def handler(event: dict, context=None) -> dict:
     if not raw:
         return {"run_id": run_id, "error": "no raw snapshots for run"}
 
+    # plataformas que SE ESPERABAN en esta corrida (vienen del input del pipeline)
+    expected = sorted({s["platform"] for s in (event.get("stores") or [])}) or sorted(raw)
+
+    # Fallback: para las que no llegaron en esta corrida, usar su raw más reciente
+    # si es suficientemente fresco (permite scrapers que corren fuera del pipeline).
+    max_age_h = float(os.environ.get("BIRRAS_RAW_MAX_AGE_H", "6"))
+    stale: dict[str, str] = {}
+    for p in expected:
+        if p in raw:
+            continue
+        fb = _latest_raw_for_platform(raw_bucket, p)
+        if not fb or not fb.get("productos"):
+            continue
+        captured = fb.get("fecha_scrapeo")
+        if _age_hours(captured) <= max_age_h:
+            raw[p] = fb
+            stale[p] = captured
+
     offers = build_offers(raw)
     platforms = sorted({o["platform"] for o in offers})
-    # plataformas que SE ESPERABAN en esta corrida (vienen del input del pipeline)
-    expected = sorted({s["platform"] for s in (event.get("stores") or [])}) or platforms
 
     # Guard anti-degradación: si un adapter cayó (p.ej. Cloudflare 403 a PedidosYa
     # desde la IP de AWS) y quedó una sola plataforma, NO republicar — dejamos la
@@ -104,7 +158,7 @@ def handler(event: dict, context=None) -> dict:
 
     # health ANTES de persistir esta corrida (para que last_seen de una plataforma
     # caída sea la última vez que realmente trajo datos)
-    health = platform_health(expected, platforms, db_local)
+    health = platform_health(expected, platforms, db_local, stale)
 
     json_path = write_matrix_json(matrix, platforms, ref_address, _PUB, generated_at, health)
     csv_path = write_matrix_csv(matrix, platforms, _PUB)
