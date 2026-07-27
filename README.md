@@ -31,6 +31,26 @@ python -m birras_scrapers.run_local pedidosya      # uno solo
 
 Los resultados crudos se escriben en `data/raw/{plataforma}/{timestamp}.json`.
 
+## Scraper local (PedidosYa)
+
+Cloudflare bloquea las IPs de datacenter de AWS para PedidosYa (403), pero desde
+una IP residencial argentina funciona. Por eso ese adapter corre en la Mac y sube
+el raw a S3; el reducer en la nube lo incorpora si es reciente
+(`BIRRAS_RAW_MAX_AGE_H`, default 6h) y lo marca como `stale` en el dashboard.
+
+```bash
+scripts/install_local_scraper.sh
+```
+
+Instala una copia autocontenida en `~/Library/Application Support/birras-scraper`
+(fuera de `~/Documents`, que macOS/TCC le bloquea a `launchd`) + un agente que
+corre cada 2 h. Log en `~/Library/Application Support/birras-scraper/scraper.log`.
+Volvé a correrlo después de tocar el código de los adapters. Para sacarlo:
+`scripts/install_local_scraper.sh --uninstall`.
+
+Requiere sesión SSO viva (`aws sso login --profile production`); si se vence, la
+subida falla y el dashboard muestra que PedidosYa quedó sin datos.
+
 ## Deploy
 
 Automático: cada push a `main` dispara [.github/workflows/deploy.yml](.github/workflows/deploy.yml),
