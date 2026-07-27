@@ -5,7 +5,9 @@
 variable "alert_email" {
   description = "Email para alertas de scrapers caídos. Vacío = sin notificación."
   type        = string
-  default     = ""
+  # Va como default (y no en un .tfvars gitignoreado) para que CI aplique lo
+  # mismo; si no, el próximo apply del pipeline borraría la suscripción.
+  default = "emivazquez02@gmail.com"
 }
 
 resource "aws_sns_topic" "alerts" {
