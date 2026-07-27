@@ -148,7 +148,9 @@ def run_timestamp() -> str:
     )
 
 
-def write_matrix_json(matrix, platforms, ref_address, out_dir: Path, generated_at=None) -> Path:
+def write_matrix_json(
+    matrix, platforms, ref_address, out_dir: Path, generated_at=None, health=None
+) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "matrix_latest.json"
     generated_at = generated_at or run_timestamp()
@@ -158,6 +160,7 @@ def write_matrix_json(matrix, platforms, ref_address, out_dir: Path, generated_a
                 "reference_address": ref_address,
                 "generated_at": generated_at,
                 "platforms": platforms,
+                "platform_health": health or [],
                 "total_canonicos": len(matrix),
                 "comparables": sum(1 for r in matrix if r["n_platforms"] > 1),
                 "products": matrix,
@@ -273,6 +276,35 @@ def build_history_json(db_path: Path, out_dir: Path, max_points: int = 60) -> Pa
     path = out_dir / "history.json"
     path.write_text(json.dumps(series, ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def platform_health(expected: list[str], present: list[str], db_path: Path | None) -> list[dict]:
+    """Estado por plataforma: cuáles llegaron en esta corrida y cuáles no.
+
+    Para las que faltan, busca en el historial cuándo fue la última vez que
+    trajeron datos (así el dashboard puede decir "sin datos hace 3 semanas"
+    en vez de que la tienda desaparezca en silencio).
+    """
+    last_seen: dict[str, str] = {}
+    if db_path and Path(db_path).exists():
+        try:
+            import duckdb
+
+            con = duckdb.connect(str(db_path), read_only=True)
+            rows = con.execute(
+                "SELECT platform, MAX(run_ts) FROM price_observations GROUP BY platform"
+            ).fetchall()
+            con.close()
+            last_seen = {p: ts for p, ts in rows if ts}
+        except Exception:  # noqa: BLE001 — el health nunca debe romper la corrida
+            last_seen = {}
+
+    present_set = set(present)
+    out = []
+    for p in sorted(set(expected) | present_set):
+        ok = p in present_set
+        out.append({"platform": p, "ok": ok, "last_seen": None if ok else last_seen.get(p)})
+    return out
 
 
 def build_history_detail_json(db_path: Path, out_dir: Path, max_runs: int = 48) -> Path | None:

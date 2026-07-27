@@ -126,6 +126,8 @@ resource "aws_sfn_state_machine" "pipeline" {
           Payload = {
             "run_id.$"            = "$.run_id"
             "reference_address.$" = "$.reference_address"
+            # tiendas esperadas -> el reducer detecta cuáles NO llegaron
+            "stores.$" = "$.stores"
           }
         }
         ResultPath = "$.reduce_result"

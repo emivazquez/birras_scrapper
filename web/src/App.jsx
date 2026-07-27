@@ -137,7 +137,9 @@ function relativeTime(iso) {
   const m = Math.floor(diff / 60);
   if (m < 60) return `hace ${m}m`;
   const h = Math.floor(m / 60);
-  return `hace ${h}h ${m % 60}m`;
+  if (h < 48) return `hace ${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  return `hace ${d} día${d !== 1 ? "s" : ""}`;
 }
 
 const variantLabel = (s) => (!s || s === "unknown" ? "" : s.replace(/-/g, " "));
@@ -346,6 +348,7 @@ export default function App() {
 
   const platforms = data?.platforms || [];
   const visiblePlatforms = platforms.filter((p) => !hidden.has(p));
+  const down = (data?.platform_health || []).filter((h) => !h.ok);
   const isMobile = useMediaQuery("(max-width: 719px)");
 
   const tree = useMemo(() => {
@@ -416,6 +419,15 @@ export default function App() {
       </header>
 
       {refresh.msg && <div className={`banner ${refresh.state}`}>{refresh.msg}</div>}
+
+      {down.length > 0 && (
+        <div className="banner warn">
+          ⚠ Sin datos de{" "}
+          <b style={{ textTransform: "capitalize" }}>{down.map((d) => d.platform).join(", ")}</b>
+          {down[0].last_seen ? ` — último dato ${relativeTime(down[0].last_seen)}` : ""}. Los precios
+          de {down.length > 1 ? "esas tiendas" : "esa tienda"} no se están comparando.
+        </div>
+      )}
 
       <div className="stats">
         <span><b>{data.total_canonicos}</b> cervezas</span>

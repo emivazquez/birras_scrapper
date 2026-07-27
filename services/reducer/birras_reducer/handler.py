@@ -26,6 +26,7 @@ from .reduce import (
     build_matrix,
     build_offers,
     persist_history,
+    platform_health,
     run_timestamp,
     write_matrix_csv,
     write_matrix_json,
@@ -72,6 +73,8 @@ def handler(event: dict, context=None) -> dict:
 
     offers = build_offers(raw)
     platforms = sorted({o["platform"] for o in offers})
+    # plataformas que SE ESPERABAN en esta corrida (vienen del input del pipeline)
+    expected = sorted({s["platform"] for s in (event.get("stores") or [])}) or platforms
 
     # Guard anti-degradación: si un adapter cayó (p.ej. Cloudflare 403 a PedidosYa
     # desde la IP de AWS) y quedó una sola plataforma, NO republicar — dejamos la
@@ -83,15 +86,13 @@ def handler(event: dict, context=None) -> dict:
             "published": False,
             "reason": "partial",
             "platforms": platforms,
+            "faltantes": sorted(set(expected) - set(platforms)),
             "offers": len(offers),
         }
 
     canonicals = assign_canonicals(offers)
     matrix = build_matrix(canonicals, offers)
     generated_at = run_timestamp()
-
-    json_path = write_matrix_json(matrix, platforms, ref_address, _PUB, generated_at)
-    csv_path = write_matrix_csv(matrix, platforms, _PUB)
 
     # historial en DuckDB (baja/sube el archivo del bucket) + history.json
     s3 = _s3()
@@ -100,6 +101,14 @@ def handler(event: dict, context=None) -> dict:
         s3.download_file(pub_bucket, "catalog.duckdb", str(db_local))
     except Exception:  # noqa: BLE001 — primera corrida: no existe aún
         pass
+
+    # health ANTES de persistir esta corrida (para que last_seen de una plataforma
+    # caída sea la última vez que realmente trajo datos)
+    health = platform_health(expected, platforms, db_local)
+
+    json_path = write_matrix_json(matrix, platforms, ref_address, _PUB, generated_at, health)
+    csv_path = write_matrix_csv(matrix, platforms, _PUB)
+
     n_hist = persist_history(offers, db_local, generated_at)
     history_path = build_history_json(db_local, _PUB)
     history_detail_path = build_history_detail_json(db_local, _PUB)
@@ -124,6 +133,7 @@ def handler(event: dict, context=None) -> dict:
     return {
         "run_id": run_id,
         "platforms": platforms,
+        "faltantes": sorted(set(expected) - set(platforms)),
         "offers": len(offers),
         "canonicos": len(canonicals),
         "comparables": comparables,
