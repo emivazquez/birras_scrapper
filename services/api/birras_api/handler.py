@@ -20,6 +20,9 @@ import boto3
 _sfn = boto3.client("stepfunctions")
 _SM = os.environ["BIRRAS_STATE_MACHINE_ARN"]
 _INPUT = os.environ.get("BIRRAS_PIPELINE_INPUT", "{}")
+# El endpoint es público (el dashboard no tiene login). Sin esto, cualquiera
+# podría encadenar refreshes y hacer que scrapeemos las tiendas sin parar.
+_COOLDOWN_S = int(os.environ.get("BIRRAS_REFRESH_COOLDOWN_S", "600"))
 
 
 def _resp(code: int, body: dict) -> dict:
@@ -28,6 +31,16 @@ def _resp(code: int, body: dict) -> dict:
         "headers": {"content-type": "application/json; charset=utf-8"},
         "body": json.dumps(body, ensure_ascii=False),
     }
+
+
+def _seconds_since(iso_ts: str) -> float:
+    import datetime as dt
+
+    try:
+        t = dt.datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+    except ValueError:
+        return float("inf")
+    return (dt.datetime.now(dt.timezone.utc) - t).total_seconds()
 
 
 def _latest_execution():
@@ -51,7 +64,14 @@ def handler(event: dict, context=None) -> dict:
     if method == "POST" and path.endswith("/refresh"):
         latest = _latest_execution()
         if latest and latest["status"] == "RUNNING":
-            return _resp(200, {"started": False, **latest})
+            return _resp(200, {"started": False, "reason": "running", **latest})
+        # cooldown: si la última corrida arrancó hace poco, no disparar otra
+        if latest and _seconds_since(latest["started_at"]) < _COOLDOWN_S:
+            espera = int(_COOLDOWN_S - _seconds_since(latest["started_at"]))
+            return _resp(
+                200,
+                {"started": False, "reason": "cooldown", "retry_after_s": espera, **latest},
+            )
         r = _sfn.start_execution(stateMachineArn=_SM, input=_INPUT)
         return _resp(202, {
             "started": True,

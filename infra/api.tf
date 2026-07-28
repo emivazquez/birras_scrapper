@@ -62,6 +62,14 @@ resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.api.id
   name        = "$default"
   auto_deploy = true
+
+  # El dashboard es público y /api/refresh no pide auth: sin throttling
+  # cualquiera podría disparar corridas en loop (costo + martillar a las tiendas
+  # que scrapeamos). El cooldown en la Lambda es la otra mitad del freno.
+  default_route_settings {
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
 }
 
 resource "aws_lambda_permission" "api_gw" {

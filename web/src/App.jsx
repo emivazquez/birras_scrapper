@@ -369,7 +369,16 @@ export default function App() {
   async function onRefresh() {
     setRefresh({ state: "running", msg: "Iniciando actualización…" });
     try {
-      await triggerRefresh();
+      const r = await triggerRefresh();
+      if (r && r.started === false && r.reason === "cooldown") {
+        const min = Math.ceil((r.retry_after_s || 0) / 60);
+        setRefresh({
+          state: "done",
+          msg: `Los precios ya se actualizaron recién. Probá de nuevo en ~${min} min (igual se refrescan solos cada 2 h).`,
+        });
+        setTimeout(() => setRefresh({ state: "idle", msg: "" }), 6000);
+        return;
+      }
       // poll
       for (let i = 0; i < 40; i++) {
         await new Promise((res) => setTimeout(res, 3000));
