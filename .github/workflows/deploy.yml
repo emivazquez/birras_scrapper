@@ -16,6 +16,8 @@ concurrency:
 env:
   AWS_REGION: us-east-1
   TF_VAR_aws_profile: "" # en CI las credenciales vienen por OIDC, no por profile
+  # El repo es público: el email de alertas vive en un secret, no en el código.
+  TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
 
 jobs:
   deploy:

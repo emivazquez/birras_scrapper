@@ -5,9 +5,10 @@
 variable "alert_email" {
   description = "Email para alertas de scrapers caídos. Vacío = sin notificación."
   type        = string
-  # Va como default (y no en un .tfvars gitignoreado) para que CI aplique lo
-  # mismo; si no, el próximo apply del pipeline borraría la suscripción.
-  default = "emivazquez02@gmail.com"
+  sensitive   = true
+  # El repo es público: el valor NO va acá. Viene de infra/terraform.tfvars
+  # (gitignoreado) en local, y del secret ALERT_EMAIL de GitHub en CI.
+  default = ""
 }
 
 resource "aws_sns_topic" "alerts" {
