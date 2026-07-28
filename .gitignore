@@ -39,3 +39,7 @@ web/public/published/
 
 # Artefactos de build del módulo terraform-aws-lambda
 infra/builds/
+
+# Config local con nombres de recursos (llevan el account id; repo público)
+scripts/local.env
+infra/backend.hcl

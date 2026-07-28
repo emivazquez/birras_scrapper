@@ -17,8 +17,17 @@ set -uo pipefail
 
 PLATFORM="${1:-pedidosya}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUCKET="${BIRRAS_RAW_BUCKET:-birras-raw-078927551363}"
+
+# Config local gitignoreada (ver scripts/local.env.example)
+[ -f "$REPO/scripts/local.env" ] && . "$REPO/scripts/local.env"
+
+BUCKET="${BIRRAS_RAW_BUCKET:-}"
 PROFILE="${AWS_PROFILE:-production}"
+
+if [ -z "$BUCKET" ]; then
+  echo "ERROR: falta BIRRAS_RAW_BUCKET (cp scripts/local.env.example scripts/local.env)" >&2
+  exit 1
+fi
 PY="$REPO/.venv/bin/python"
 LOG="$REPO/data/scrape_local.log"
 

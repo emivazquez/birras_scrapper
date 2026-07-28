@@ -13,8 +13,12 @@ terraform {
   }
 
   # State remoto en S3 con lock nativo (use_lockfile, sin DynamoDB).
+  #
+  # Backend PARCIAL: el nombre del bucket no va en el repo (es público y el
+  # bucket lleva el account id). Se pasa en el init:
+  #   local: terraform init -backend-config=backend.hcl   (backend.hcl gitignoreado)
+  #   CI:    terraform init -backend-config="bucket=$TFSTATE_BUCKET"  (secret)
   backend "s3" {
-    bucket       = "birras-tfstate-078927551363"
     key          = "infra/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true

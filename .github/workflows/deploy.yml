@@ -29,7 +29,7 @@ jobs:
       - name: Configurar credenciales AWS (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::078927551363:role/birras-github-actions
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: hashicorp/setup-terraform@v3
@@ -40,7 +40,8 @@ jobs:
       - name: Terraform apply (infra + Lambdas)
         working-directory: infra
         run: |
-          terraform init -input=false
+          # backend parcial: el nombre del bucket de state no vive en el repo
+          terraform init -input=false -backend-config="bucket=${{ secrets.TFSTATE_BUCKET }}"
           terraform apply -auto-approve -input=false
 
       - uses: actions/setup-node@v4

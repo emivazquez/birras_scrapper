@@ -19,9 +19,20 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$HOME/Library/Application Support/birras-scraper"
 PLIST="$HOME/Library/LaunchAgents/com.birras.scraper.plist"
 LABEL="com.birras.scraper"
+
+# Config local (gitignoreada): el nombre del bucket lleva el account id y el
+# repo es público. Copiá scripts/local.env.example a scripts/local.env.
+[ -f "$REPO/scripts/local.env" ] && . "$REPO/scripts/local.env"
+
 PLATFORM="${BIRRAS_LOCAL_PLATFORM:-pedidosya}"
-BUCKET="${BIRRAS_RAW_BUCKET:-birras-raw-078927551363}"
+BUCKET="${BIRRAS_RAW_BUCKET:-}"
 PROFILE="${AWS_PROFILE:-production}"
+
+if [ -z "$BUCKET" ] && [ "${1:-}" != "--uninstall" ]; then
+  echo "ERROR: falta BIRRAS_RAW_BUCKET." >&2
+  echo "  cp scripts/local.env.example scripts/local.env  # y completá el bucket" >&2
+  exit 1
+fi
 
 if [ "${1:-}" = "--uninstall" ]; then
   launchctl unload "$PLIST" 2>/dev/null || true

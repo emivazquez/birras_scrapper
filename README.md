@@ -39,6 +39,7 @@ el raw a S3; el reducer en la nube lo incorpora si es reciente
 (`BIRRAS_RAW_MAX_AGE_H`, default 6h) y lo marca como `stale` en el dashboard.
 
 ```bash
+cp scripts/local.env.example scripts/local.env   # completar BIRRAS_RAW_BUCKET
 scripts/install_local_scraper.sh
 ```
 
