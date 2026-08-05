@@ -94,6 +94,26 @@ body {
 .modalhead h3 { margin: 0; font-size: 18px; }
 .modalhead .meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
 .modalsub { color: var(--muted); font-size: 12px; margin: 12px 0 8px; }
+
+/* EAN/GTIN en el modal */
+.gtinrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.gtinlabel {
+  color: var(--muted); font-size: 10px; letter-spacing: 0.7px;
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px;
+}
+.gtinval {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13.5px; letter-spacing: 0.5px; color: var(--text);
+  background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 2px 8px; cursor: pointer; user-select: all;
+}
+.gtinval:hover { border-color: var(--accent); }
+.gtincopy {
+  background: none; border: none; color: var(--muted);
+  font-size: 11.5px; cursor: pointer; padding: 2px 4px;
+}
+.gtincopy:hover { color: var(--accent); }
+.gtinnone { color: var(--muted); font-size: 12.5px; font-style: italic; }
 .histchart { display: block; }
 .histchart .axis { fill: var(--muted); font-size: 10px; }
 .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }

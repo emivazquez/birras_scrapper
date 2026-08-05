@@ -69,6 +69,38 @@ function HistoryChart({ series, allPlatforms }) {
   );
 }
 
+function Gtin({ value }) {
+  const [copiado, setCopiado] = useState(false);
+  if (!value) {
+    return (
+      <div className="gtinrow">
+        <span className="gtinlabel">EAN</span>
+        <span className="gtinnone">no lo publica la tienda</span>
+      </div>
+    );
+  }
+  const copiar = () => {
+    navigator.clipboard?.writeText(value).then(
+      () => {
+        setCopiado(true);
+        setTimeout(() => setCopiado(false), 1500);
+      },
+      () => {},
+    );
+  };
+  return (
+    <div className="gtinrow">
+      <span className="gtinlabel">EAN</span>
+      <code className="gtinval" onClick={copiar} title="Copiar">
+        {value}
+      </code>
+      <button className="gtincopy" onClick={copiar}>
+        {copiado ? "✓ copiado" : "copiar"}
+      </button>
+    </div>
+  );
+}
+
 function DetailModal({ row, series, allPlatforms, onClose }) {
   return (
     <div className="overlay" onClick={onClose}>
@@ -77,10 +109,16 @@ function DetailModal({ row, series, allPlatforms, onClose }) {
           <div>
             <h3>{row.display_name}</h3>
             <div className="meta">
-              {[variantLabel(row.variant_slug), row.volume_ml && `${row.volume_ml}ml`, row.container]
+              {[
+                variantLabel(row.variant_slug),
+                row.volume_ml && `${row.volume_ml}ml`,
+                row.container,
+                row.pack_qty > 1 && `pack x${row.pack_qty}`,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </div>
+            <Gtin value={row.gtin} />
           </div>
           <button className="btn ghost" onClick={onClose}>✕</button>
         </div>
