@@ -69,6 +69,21 @@ function HistoryChart({ series, allPlatforms }) {
   );
 }
 
+// Promo multi-unidad: el precio de la celda es el unitario; esto muestra a
+// cuánto sale cada unidad si llevás la cantidad de la promo.
+function Promo({ promo, perML }) {
+  if (!promo?.precio_efectivo) return null;
+  const efectivo = perML ? promo.precio_efectivo * perML : promo.precio_efectivo;
+  return (
+    <div className="promo" title={promo.texto}>
+      <span className="promotag">{promo.etiqueta}</span>
+      <span className="promoprice">
+        c/u {money(efectivo)} {promo.unidades > 1 && `llevando ${promo.unidades}`}
+      </span>
+    </div>
+  );
+}
+
 function Gtin({ value }) {
   const [copiado, setCopiado] = useState(false);
   if (!value) {
@@ -101,7 +116,78 @@ function Gtin({ value }) {
   );
 }
 
+// Tabla de evolución: una fila por ecommerce, una columna por día.
+// De cada día se toma la ÚLTIMA observación (el precio con el que cerró).
+function DayTable({ series, allPlatforms, maxDays = 21 }) {
+  const plats = Object.keys(series || {});
+  if (!plats.length) return <div className="nohist">Sin historial todavía.</div>;
+
+  const porPlatDia = {};
+  const dias = new Set();
+  plats.forEach((p) => {
+    porPlatDia[p] = {};
+    series[p].forEach(([ts, v]) => {
+      const d = ts.slice(0, 10);
+      dias.add(d);
+      porPlatDia[p][d] = v; // la última del día pisa a las anteriores
+    });
+  });
+  const cols = [...dias].sort().slice(-maxDays);
+  const fmtDia = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  // el más barato de cada día, para resaltarlo
+  const minPorDia = {};
+  cols.forEach((d) => {
+    const vals = plats.map((p) => porPlatDia[p][d]).filter((v) => v != null);
+    if (vals.length) minPorDia[d] = Math.min(...vals);
+  });
+
+  const filas = plats
+    .slice()
+    .sort((a, b) => allPlatforms.indexOf(a) - allPlatforms.indexOf(b));
+
+  return (
+    <div className="daywrap">
+      <table className="daytable">
+        <thead>
+          <tr>
+            <th className="dsticky">Ecommerce</th>
+            {cols.map((d) => (
+              <th key={d}>{fmtDia(d)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((p) => (
+            <tr key={p}>
+              <td className="dsticky dplat">
+                <span className="sw" style={{ background: platColor(p, allPlatforms) }} />
+                {p}
+              </td>
+              {cols.map((d, i) => {
+                const v = porPlatDia[p][d];
+                if (v == null) return <td key={d} className="dempty">—</td>;
+                const prev = cols.slice(0, i).reverse().map((x) => porPlatDia[p][x]).find((x) => x != null);
+                const dir = prev == null || v === prev ? "" : v < prev ? "baja" : "sube";
+                return (
+                  <td key={d} className={`dcell ${v === minPorDia[d] ? "dmin" : ""}`}>
+                    {money(v)}
+                    {dir && <span className={`darrow ${dir}`}>{dir === "baja" ? "▼" : "▲"}</span>}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="dayfoot">
+        Último precio de cada día · <span className="dmin-legend">verde</span> = el más barato ese día
+      </div>
+    </div>
+  );
+}
+
 function DetailModal({ row, series, allPlatforms, onClose }) {
+  const [vista, setVista] = useState("chart");
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -122,11 +208,29 @@ function DetailModal({ row, series, allPlatforms, onClose }) {
           </div>
           <button className="btn ghost" onClick={onClose}>✕</button>
         </div>
-        <div className="modalsub">Evolución del precio por ecommerce</div>
+        <div className="modalsub">
+          <span>Evolución del precio por ecommerce</span>
+          <span className="vistas">
+            <button
+              className={`vbtn ${vista === "chart" ? "on" : ""}`}
+              onClick={() => setVista("chart")}
+            >
+              📈 Gráfico
+            </button>
+            <button
+              className={`vbtn ${vista === "table" ? "on" : ""}`}
+              onClick={() => setVista("table")}
+            >
+              📅 Por día
+            </button>
+          </span>
+        </div>
         {series === undefined ? (
           <div className="nohist">Cargando historial…</div>
-        ) : (
+        ) : vista === "chart" ? (
           <HistoryChart series={series} allPlatforms={allPlatforms} />
+        ) : (
+          <DayTable series={series} allPlatforms={allPlatforms} />
         )}
       </div>
     </div>
@@ -188,6 +292,14 @@ function minPrice(row) {
     .map((c) => c.precio_actual);
   return vals.length ? Math.min(...vals) : Infinity;
 }
+// menor precio por unidad considerando promos multi-unidad (2x1, 2do al 50%)
+function minPricePromo(row) {
+  const vals = Object.values(row.precios)
+    .filter((c) => c.disponible && c.precio_actual)
+    .map((c) => Math.min(c.precio_actual, c.promo?.precio_efectivo || Infinity));
+  return vals.length ? Math.min(...vals) : Infinity;
+}
+const hasPromo = (row) => Object.values(row.precios).some((c) => c.promo?.precio_efectivo);
 function maxDiscount(row) {
   const vals = Object.values(row.precios).map((c) => c.descuento_pct || 0);
   return vals.length ? Math.max(...vals) : 0;
@@ -300,6 +412,7 @@ export default function App() {
   const [hidden, setHidden] = useState(() => new Set());
   const [onlyComparable, setOnlyComparable] = useState(false);
   const [onlyDeal, setOnlyDeal] = useState(false);
+  const [onlyPromo, setOnlyPromo] = useState(false);
   const [per100, setPer100] = useState(false);
   const [sort, setSort] = useState("default");
   const [visibleCount, setVisibleCount] = useState(150); // render incremental
@@ -361,16 +474,18 @@ export default function App() {
     if (brand) r = r.filter((x) => x.brand_display === brand);
     if (size) r = r.filter((x) => String(x.volume_ml) === size);
     if (onlyComparable) r = r.filter((x) => x.n_platforms > 1);
-    if (onlyDeal) r = r.filter((x) => maxDiscount(x) > 0);
+    if (onlyDeal) r = r.filter((x) => maxDiscount(x) > 0 || hasPromo(x));
+    if (onlyPromo) r = r.filter(hasPromo);
     const cmp = {
       default: (a, b) => b.n_platforms - a.n_platforms || a.brand_display.localeCompare(b.brand_display),
       cheap: (a, b) => minPrice(a) - minPrice(b),
+      promo: (a, b) => minPricePromo(a) - minPricePromo(b),
       discount: (a, b) => maxDiscount(b) - maxDiscount(a),
       per100: (a, b) => minPer100(a) - minPer100(b),
       brand: (a, b) => a.brand_display.localeCompare(b.brand_display),
     }[sort];
     return r.sort(cmp);
-  }, [data, q, brand, size, onlyComparable, onlyDeal, sort]);
+  }, [data, q, brand, size, onlyComparable, onlyDeal, onlyPromo, sort]);
 
   // Render incremental: reseteo al cambiar los filtros, sumo al scrollear cerca del fondo.
   useEffect(() => setVisibleCount(150), [rows]);
@@ -516,6 +631,7 @@ export default function App() {
         <select value={sort} onChange={(e) => setSort(e.target.value)}>
           <option value="default">Orden: comparables</option>
           <option value="cheap">Más barato</option>
+          <option value="promo">Más barato con promo (2x1, 2do al X%)</option>
           <option value="discount">Mayor descuento</option>
           <option value="per100">$/100ml</option>
           <option value="brand">Marca</option>
@@ -527,6 +643,10 @@ export default function App() {
         <label className="chk">
           <input type="checkbox" checked={onlyDeal} onChange={(e) => setOnlyDeal(e.target.checked)} />
           en oferta
+        </label>
+        <label className="chk">
+          <input type="checkbox" checked={onlyPromo} onChange={(e) => setOnlyPromo(e.target.checked)} />
+          con 2x1 / 2do al X%
         </label>
         <label className="chk">
           <input type="checkbox" checked={per100} onChange={(e) => setPer100(e.target.checked)} />
@@ -656,6 +776,12 @@ function Card({ row, platforms, per100, onOpen }) {
                       <span className="pct"> −{Math.round(c.descuento_pct)}%</span>
                     )}
                   </span>
+                  {c.promo?.precio_efectivo && (
+                    <span className="promo" title={c.promo.texto}>
+                      <span className="promotag">{c.promo.etiqueta}</span>
+                      <span className="promoprice">c/u {money(c.promo.precio_efectivo)}</span>
+                    </span>
+                  )}
                 </span>
               ) : (
                 <span className="oostag">sin stock</span>
@@ -713,14 +839,18 @@ function Row({ row, platforms, per100, history, onOpen }) {
                   <span className="pct">−{Math.round(c.descuento_pct)}%</span>
                   {c.suspect && <span className="warn">⚠</span>}
                 </div>
+                <Promo promo={c.promo} perML={perML} />
               </>
             ) : (
-              <div className="price">
-                {best && <span className="dot">●</span>}
-                {money(actual)}
-                {c.suspect && <span className="warn">⚠</span>}
-                {per100 && <span className="unit">/100ml</span>}
-              </div>
+              <>
+                <div className="price">
+                  {best && <span className="dot">●</span>}
+                  {money(actual)}
+                  {c.suspect && <span className="warn">⚠</span>}
+                  {per100 && <span className="unit">/100ml</span>}
+                </div>
+                <Promo promo={c.promo} perML={perML} />
+              </>
             )}
           </td>
         );

@@ -28,6 +28,15 @@ class Product:
     stock: Optional[int]
     gtin: str = ""
 
+    # Promoción multi-unidad (2x1, "2do al 50%"): el precio unitario NO la
+    # refleja, la tienda la publica aparte. precio_efectivo = por unidad
+    # llevando `promo_unidades`.
+    promo_etiqueta: str = ""
+    promo_texto: str = ""
+    promo_tipo: str = ""  # "multi" | "tarjeta"
+    promo_unidades: int = 0
+    promo_precio_efectivo: Optional[float] = None
+
     # Atributos de cerveza opcionales (los llenan Rappi / VTEX cuando existen)
     beer_color: str = ""
     beer_style: str = ""

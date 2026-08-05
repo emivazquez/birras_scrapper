@@ -88,12 +88,42 @@ body {
 }
 .modal {
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  padding: 18px; width: 100%; max-width: 620px; max-height: 90vh; overflow: auto;
+  padding: 18px; width: 100%; max-width: 860px; max-height: 90vh; overflow: auto;
 }
 .modalhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .modalhead h3 { margin: 0; font-size: 18px; }
 .modalhead .meta { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
-.modalsub { color: var(--muted); font-size: 12px; margin: 12px 0 8px; }
+.modalsub {
+  color: var(--muted); font-size: 12px; margin: 12px 0 8px;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.vistas { display: flex; gap: 4px; }
+.vbtn {
+  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 6px; padding: 3px 9px; font-size: 11.5px; cursor: pointer;
+}
+.vbtn.on { background: var(--panel2); color: var(--text); border-color: #3a4553; }
+
+/* Tabla de evolución: filas = ecommerce, columnas = días */
+.daywrap { overflow-x: auto; }
+.daytable { border-collapse: collapse; font-size: 12px; width: 100%; }
+.daytable th, .daytable td {
+  padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: right;
+}
+.daytable th { color: var(--muted); font-weight: 500; font-size: 10.5px; }
+.daytable .dsticky {
+  position: sticky; left: 0; background: var(--panel); text-align: left; z-index: 1;
+}
+.daytable thead .dsticky { background: var(--panel); }
+.dplat { text-transform: capitalize; display: flex; align-items: center; gap: 6px; }
+.dcell { font-variant-numeric: tabular-nums; }
+.dcell.dmin { color: var(--green); font-weight: 700; }
+.dempty { color: var(--line); }
+.darrow { font-size: 8px; margin-left: 3px; vertical-align: middle; }
+.darrow.baja { color: var(--green); }
+.darrow.sube { color: var(--red); }
+.dayfoot { color: var(--muted); font-size: 11px; margin-top: 8px; }
+.dmin-legend { color: var(--green); }
 
 /* EAN/GTIN en el modal */
 .gtinrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
@@ -198,6 +228,19 @@ td.cell.split { padding: 0; }
 .half.deal { font-weight: 700; }
 .dealprice { color: var(--green); }
 .cell.suspect .dealprice { color: var(--muted); opacity: 0.7; }
+
+/* Promo multi-unidad (2x1, "2do al 50%"): no está en el precio unitario */
+.promo {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  padding: 4px 12px 6px; cursor: help;
+}
+td.cell.split .promo { padding-top: 5px; border-top: 1px dashed var(--line); }
+.promotag {
+  background: #3a2f12; color: var(--accent); border: 1px solid #5a4a1c;
+  border-radius: 4px; padding: 1px 5px; font-size: 10.5px; font-weight: 700;
+  white-space: nowrap;
+}
+.promoprice { color: var(--muted); font-size: 11px; }
 .oos { color: var(--muted); }
 .oostag { color: var(--muted); font-size: 12px; font-style: italic; }
 .cell.suspect .price { color: var(--muted); opacity: 0.7; }

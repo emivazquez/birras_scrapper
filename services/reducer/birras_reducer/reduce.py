@@ -27,6 +27,11 @@ _OFFER_FIELDS = (
     "precio_por_100ml",
     "stock",
     "gtin",
+    "promo_etiqueta",
+    "promo_texto",
+    "promo_tipo",
+    "promo_unidades",
+    "promo_precio_efectivo",
     "beer_color",
     "beer_style",
     "abv",
@@ -64,7 +69,7 @@ def build_offers(raw_by_platform: dict[str, dict]) -> list[dict]:
 
 
 def _price_cell(offer: dict) -> dict:
-    return {
+    cell = {
         "nombre": offer["nombre"],
         "precio_actual": offer["precio_actual"],
         "precio_anterior": offer["precio_anterior"],
@@ -73,6 +78,15 @@ def _price_cell(offer: dict) -> dict:
         "stock": offer["stock"],
         "disponible": bool(offer.get("stock")),
     }
+    # Promo multi-unidad (2x1, "2do al 50%"): el precio unitario no la refleja
+    if offer.get("promo_tipo") == "multi" and offer.get("promo_precio_efectivo"):
+        cell["promo"] = {
+            "etiqueta": offer.get("promo_etiqueta") or "",
+            "texto": offer.get("promo_texto") or "",
+            "unidades": offer.get("promo_unidades") or 0,
+            "precio_efectivo": offer["promo_precio_efectivo"],
+        }
+    return cell
 
 
 def build_matrix(canonicals: list[dict], offers: list[dict]) -> list[dict]:

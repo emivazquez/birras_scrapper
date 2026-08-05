@@ -67,3 +67,69 @@ def precio_por_100ml(price: float, volumen_ml: Optional[int]) -> Optional[float]
     if price and volumen_ml:
         return round(price / volumen_ml * 10000) / 100
     return None
+
+
+# --- Promociones multi-unidad (2x1, 3x2, "2do al 50%") ----------------------
+# Las tiendas las publican como texto libre en campos aparte del precio, así que
+# el precio unitario NO las refleja. Un "2do al 50%" es -25% por unidad llevando
+# dos; un 2x1 es -50%. Son descuentos grandes que conviene mostrar.
+
+# "2x1", "3x2" -> llevás n, pagás m
+_RE_NXM = re.compile(r"\b(\d)\s*[xX×]\s*(\d)\b")
+# "2do al 50%", "2da unidad al 70%", "segunda unidad 50% off"
+_RE_SEGUNDA = re.compile(
+    r"\b(?:2|2d[oa]|2[ªa]|segunda)\b[^%\d]{0,20}(\d{1,3})\s*%", re.I
+)
+# promos atadas a un medio de pago: no aplican a cualquiera, se marcan aparte
+_RE_TARJETA = re.compile(r"tarjeta|banco|mi\s*crf|cuotas|visa|master|galicia|santander", re.I)
+
+
+def parse_promo(texto: str, precio: float) -> Optional[dict]:
+    """Interpreta el texto de una promo y calcula el precio efectivo por unidad.
+
+    Devuelve None si no reconoce una promo multi-unidad aplicable.
+    Los descuentos por medio de pago se devuelven con tipo='tarjeta' y sin
+    precio efectivo (no aplican a todo el mundo).
+    """
+    if not texto:
+        return None
+    t = str(texto).strip()
+
+    if _RE_TARJETA.search(t):
+        return {"tipo": "tarjeta", "texto": t, "unidades": 0, "precio_efectivo": None}
+
+    m = _RE_NXM.search(t)
+    if m:
+        n, pagas = int(m.group(1)), int(m.group(2))
+        if 1 <= pagas < n <= 6:
+            return {
+                "tipo": "multi",
+                "texto": t,
+                "etiqueta": f"{n}x{pagas}",
+                "unidades": n,
+                "precio_efectivo": round(precio * pagas / n, 2) if precio else None,
+            }
+
+    m = _RE_SEGUNDA.search(t)
+    if m:
+        off = int(m.group(1))
+        if 0 < off <= 100:
+            # llevando 2: la 1ra full + la 2da con `off`% de descuento
+            efectivo = precio * (2 - off / 100) / 2 if precio else None
+            return {
+                "tipo": "multi",
+                "texto": t,
+                "etiqueta": f"2do −{off}%",
+                "unidades": 2,
+                "precio_efectivo": round(efectivo, 2) if efectivo else None,
+            }
+    return None
+
+
+def mejor_promo(textos, precio: float) -> Optional[dict]:
+    """De varios textos de promo, la que deja el menor precio efectivo."""
+    cands = [p for p in (parse_promo(t, precio) for t in textos or []) if p]
+    multi = [p for p in cands if p["tipo"] == "multi" and p["precio_efectivo"]]
+    if multi:
+        return min(multi, key=lambda p: p["precio_efectivo"])
+    return cands[0] if cands else None

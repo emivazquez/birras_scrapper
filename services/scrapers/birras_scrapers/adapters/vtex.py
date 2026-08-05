@@ -24,6 +24,7 @@ from ..constants import DEFAULT_ADDRESS
 from ..http import new_session
 from ..parsing import (
     compute_descuento,
+    mejor_promo,
     parse_tipo,
     parse_volumen_ml_from_name,
     precio_por_100ml,
@@ -67,6 +68,16 @@ def _transform(p: dict) -> Product | None:
     avail = offer.get("AvailableQuantity") or 0
     vol = parse_volumen_ml_from_name(name)
 
+    # VTEX publica las promos (2x1, "2do al 50%", tarjetas) en Teasers, aparte
+    # del precio: el Price NO las incluye.
+    teasers = (offer.get("Teasers") or []) + (offer.get("PromotionTeasers") or [])
+    textos = [
+        (t.get("Name") or t.get("<Name>k__BackingField") or "")
+        for t in teasers
+        if isinstance(t, dict)
+    ]
+    promo = mejor_promo(textos, price) or {}
+
     return Product(
         id=str(p.get("productId") or item.get("itemId") or ean or name),
         nombre=name,
@@ -79,6 +90,11 @@ def _transform(p: dict) -> Product | None:
         precio_por_100ml=precio_por_100ml(price, vol),
         stock=avail,
         gtin=ean,
+        promo_etiqueta=promo.get("etiqueta", ""),
+        promo_texto=promo.get("texto", ""),
+        promo_tipo=promo.get("tipo", ""),
+        promo_unidades=promo.get("unidades", 0),
+        promo_precio_efectivo=promo.get("precio_efectivo"),
     )
 
 

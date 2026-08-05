@@ -20,7 +20,7 @@ import re
 
 from ..constants import DEFAULT_ADDRESS
 from ..http import new_session
-from ..parsing import compute_descuento, parse_tipo, precio_por_100ml, to_ml
+from ..parsing import compute_descuento, mejor_promo, parse_tipo, precio_por_100ml, to_ml
 from ..schema import Product, ScrapeResult, now_iso
 from .base import Adapter
 
@@ -46,6 +46,14 @@ def _transform(prod: dict) -> Product:
     real_price = prod.get("real_price") or price
     name = prod.get("name", "")
     marca = prod.get("trademark") or ""
+    # Rappi publica promos tipo "50% en la 2da unidad" en complex_discounts
+    textos = []
+    for cd in prod.get("complex_discounts") or []:
+        if isinstance(cd, dict):
+            textos += [str(cd.get(k)) for k in ("description", "name", "label", "title") if cd.get(k)]
+        elif cd:
+            textos.append(str(cd))
+    promo = mejor_promo(textos, price) or {}
     return Product(
         id=str(prod.get("product_id", "")),
         nombre=name,
@@ -60,6 +68,11 @@ def _transform(prod: dict) -> Product:
         precio_por_100ml=precio_por_100ml(price, vol),
         stock=prod.get("stock") or (1 if prod.get("in_stock") else 0),
         gtin=prod.get("ean") or "",
+        promo_etiqueta=promo.get("etiqueta", ""),
+        promo_texto=promo.get("texto", ""),
+        promo_tipo=promo.get("tipo", ""),
+        promo_unidades=promo.get("unidades", 0),
+        promo_precio_efectivo=promo.get("precio_efectivo"),
         beer_color=attrs.get("beer_color") or "",
         beer_style=attrs.get("beer_style") or "",
         abv=attrs.get("abv"),

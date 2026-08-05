@@ -22,7 +22,13 @@ from statistics import median
 
 from ..constants import DEFAULT_ADDRESS
 from ..http import new_session
-from ..parsing import compute_descuento, parse_tipo, parse_volumen_ml_from_name, precio_por_100ml
+from ..parsing import (
+    compute_descuento,
+    mejor_promo,
+    parse_tipo,
+    parse_volumen_ml_from_name,
+    precio_por_100ml,
+)
 from ..schema import Product, ScrapeResult, now_iso
 from .base import Adapter
 
@@ -65,6 +71,12 @@ def _transform(item: dict) -> Product | None:
     if not (price < list_price <= price * 2.2):
         list_price = price  # no confiamos el tachado si es absurdo
 
+    # Coto publica las promos en `discounts` (ej. "2x1", "25%Dto"), aparte del precio
+    textos = [
+        (x.get("discountText") or "") for x in (d.get("discounts") or []) if isinstance(x, dict)
+    ]
+    promo = mejor_promo(textos, price) or {}
+
     return Product(
         id=str(d.get("id") or d.get("sku_plu") or item.get("value")),
         nombre=name,
@@ -77,6 +89,11 @@ def _transform(item: dict) -> Product | None:
         precio_por_100ml=ppc,
         stock=1,  # Coto no da stock claro; asumimos disponible
         gtin="",
+        promo_etiqueta=promo.get("etiqueta", ""),
+        promo_texto=promo.get("texto", ""),
+        promo_tipo=promo.get("tipo", ""),
+        promo_unidades=promo.get("unidades", 0),
+        promo_precio_efectivo=promo.get("precio_efectivo"),
     )
 
 
