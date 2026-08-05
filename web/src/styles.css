@@ -125,6 +125,42 @@ body {
 .dayfoot { color: var(--muted); font-size: 11px; margin-top: 8px; }
 .dmin-legend { color: var(--green); }
 
+/* Selector de vista */
+.viewtabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.vt {
+  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; font-weight: 600;
+}
+.vt.on { background: var(--panel2); color: var(--text); border-color: #3a4553; }
+
+/* Vista por tienda: filas = productos, columnas = días */
+.storebar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.sb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.sb select {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  padding: 6px 10px; border-radius: 8px; font-size: 13px; text-transform: capitalize;
+}
+.sbinfo { color: var(--muted); font-size: 12px; }
+.sbclear { padding: 4px 10px; font-size: 12px; }
+.picker {
+  display: flex; flex-wrap: wrap; gap: 5px; max-height: 108px; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin-bottom: 12px;
+}
+.pick {
+  display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 16px; padding: 3px 10px; color: var(--muted);
+}
+.pick.on { border-color: var(--accent); color: var(--text); background: var(--panel2); }
+.pick input { margin: 0; }
+.storetable td, .storetable th { text-align: right; }
+.dprod {
+  text-align: left; max-width: 210px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-weight: 600;
+}
+.dlista { color: var(--muted); font-size: 11px; }
+.ddeal { color: var(--green); font-weight: 700; }
+.storetable .pct { font-size: 10px; }
+
 /* EAN/GTIN en el modal */
 .gtinrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .gtinlabel {

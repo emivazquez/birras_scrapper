@@ -347,16 +347,22 @@ def build_history_detail_json(db_path: Path, out_dir: Path, max_runs: int = 48) 
     except ImportError:
         return None
     con = duckdb.connect(str(db_path))
+    # [fecha, precio, descuento%]. El descuento permite reconstruir el precio de
+    # lista en la vista por día: lista = precio / (1 - desc/100)
     q = """
-        SELECT canonical_key, platform, run_ts, MIN(precio_actual) AS p
+        SELECT canonical_key, platform, run_ts,
+               MIN(precio_actual) AS p,
+               MAX(descuento_pct) AS d
         FROM price_observations
         WHERE precio_actual > 0 AND stock > 0 AND canonical_key <> ''
         GROUP BY canonical_key, platform, run_ts
         ORDER BY canonical_key, platform, run_ts
     """
     detail: dict[str, dict[str, list]] = {}
-    for ckey, platform, run_ts, p in con.execute(q).fetchall():
-        detail.setdefault(ckey, {}).setdefault(platform, []).append([run_ts, round(p, 2)])
+    for ckey, platform, run_ts, p, d in con.execute(q).fetchall():
+        detail.setdefault(ckey, {}).setdefault(platform, []).append(
+            [run_ts, round(p, 2), round(d or 0, 1)]
+        )
     con.close()
     out = {}
     for ckey, plats in detail.items():

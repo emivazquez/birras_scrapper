@@ -186,6 +186,104 @@ function DayTable({ series, allPlatforms, maxDays = 21 }) {
   );
 }
 
+// Vista "por tienda": filas = productos elegidos, columnas = días, para una
+// sola tienda. Cada celda muestra el precio de lista arriba y el precio con
+// descuento abajo (mismo criterio que la matriz principal).
+function StoreDayView({ rows, platforms, history, plat, setPlat, picked, togglePick, clearPicks, maxDays = 14 }) {
+  const candidatos = rows.filter((r) => r.precios[plat]);
+  const elegidos = picked.size
+    ? candidatos.filter((r) => picked.has(r.canonical_id))
+    : candidatos.slice(0, 12);
+
+  // día -> {precio, desc} por producto
+  const porProd = {};
+  const dias = new Set();
+  elegidos.forEach((r) => {
+    const serie = history?.[r.canonical_key]?.[plat] || [];
+    const m = {};
+    serie.forEach(([ts, v, d]) => {
+      const dia = ts.slice(0, 10);
+      dias.add(dia);
+      m[dia] = { precio: v, desc: d || 0 };
+    });
+    porProd[r.canonical_id] = m;
+  });
+  const cols = [...dias].sort().slice(-maxDays);
+  const fmtDia = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+
+  return (
+    <div className="storeview">
+      <div className="storebar">
+        <label className="sb">
+          Tienda:
+          <select value={plat} onChange={(e) => setPlat(e.target.value)}>
+            {platforms.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+        </label>
+        <span className="sbinfo">
+          {picked.size
+            ? `${picked.size} producto${picked.size !== 1 ? "s" : ""} elegido${picked.size !== 1 ? "s" : ""}`
+            : `mostrando los primeros ${elegidos.length} de ${candidatos.length} — tildá los que quieras comparar`}
+        </span>
+        {picked.size > 0 && (
+          <button className="btn ghost sbclear" onClick={clearPicks}>limpiar selección</button>
+        )}
+      </div>
+
+      <div className="picker">
+        {candidatos.slice(0, 120).map((r) => (
+          <label key={r.canonical_id} className={`pick ${picked.has(r.canonical_id) ? "on" : ""}`}>
+            <input
+              type="checkbox"
+              checked={picked.has(r.canonical_id)}
+              onChange={() => togglePick(r.canonical_id)}
+            />
+            {r.display_name}
+          </label>
+        ))}
+      </div>
+
+      {cols.length === 0 ? (
+        <div className="nohist">Todavía no hay historial de esos productos en {plat}.</div>
+      ) : (
+        <div className="daywrap">
+          <table className="daytable storetable">
+            <thead>
+              <tr>
+                <th className="dsticky">Producto</th>
+                {cols.map((d) => <th key={d}>{fmtDia(d)}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {elegidos.map((r) => (
+                <tr key={r.canonical_id}>
+                  <td className="dsticky dprod" title={r.display_name}>{r.display_name}</td>
+                  {cols.map((d) => {
+                    const v = porProd[r.canonical_id]?.[d];
+                    if (!v) return <td key={d} className="dempty">—</td>;
+                    const lista = v.desc > 0 ? v.precio / (1 - v.desc / 100) : null;
+                    return (
+                      <td key={d} className="dcell">
+                        {lista && <div className="dlista">{money(lista)}</div>}
+                        <div className={lista ? "ddeal" : ""}>
+                          {money(v.precio)}
+                          {lista && <span className="pct"> −{Math.round(v.desc)}%</span>}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DetailModal({ row, series, allPlatforms, onClose }) {
   const [vista, setVista] = useState("chart");
   return (
@@ -419,6 +517,15 @@ export default function App() {
   const [detail, setDetail] = useState(null); // fila seleccionada para el gráfico
   const [hdetail, setHdetail] = useState(null); // historial por-plataforma (lazy)
   const [grouped, setGrouped] = useState(false); // vista agrupada marca→modelo→config
+  const [vista, setVista] = useState("matriz"); // "matriz" | "tienda"
+  const [platSel, setPlatSel] = useState("");
+  const [picked, setPicked] = useState(() => new Set());
+  const togglePick = (id) =>
+    setPicked((prev) => {
+      const n = new Set(prev);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
   const [openBrands, setOpenBrands] = useState(() => new Set());
   const [openModels, setOpenModels] = useState(() => new Set());
 
@@ -426,6 +533,10 @@ export default function App() {
     setDetail(row);
     if (hdetail === null) fetchHistoryDetail().then(setHdetail);
   };
+  // la vista por tienda también necesita el historial detallado
+  useEffect(() => {
+    if (vista === "tienda" && hdetail === null) fetchHistoryDetail().then(setHdetail);
+  }, [vista, hdetail]);
   const toggleIn = (setter) => (key) =>
     setter((prev) => {
       const next = new Set(prev);
@@ -609,6 +720,15 @@ export default function App() {
         </span>
       </div>
 
+      <div className="viewtabs">
+        <button className={`vt ${vista === "matriz" ? "on" : ""}`} onClick={() => setVista("matriz")}>
+          Comparar tiendas
+        </button>
+        <button className={`vt ${vista === "tienda" ? "on" : ""}`} onClick={() => setVista("tienda")}>
+          Evolución por tienda
+        </button>
+      </div>
+
       <div className="filters">
         <input
           className="search"
@@ -672,7 +792,18 @@ export default function App() {
         ))}
       </div>
 
-      {grouped ? (
+      {vista === "tienda" ? (
+        <StoreDayView
+          rows={rows}
+          platforms={platforms}
+          history={hdetail}
+          plat={platSel || platforms[0] || ""}
+          setPlat={setPlatSel}
+          picked={picked}
+          togglePick={togglePick}
+          clearPicks={() => setPicked(new Set())}
+        />
+      ) : grouped ? (
         <GroupedView
           tree={tree}
           openBrands={openBrands}
