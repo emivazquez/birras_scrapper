@@ -645,10 +645,17 @@ function Card({ row, platforms, per100, onOpen }) {
               <span className="pname">{p}</span>
               {c.disponible ? (
                 <span className="pval">
-                  {best && <span className="dot">●</span>}
-                  {per100 ? `${money(c.precio_por_100ml)}/100ml` : money(c.precio_actual)}
-                  {c.suspect && <span className="warn">⚠</span>}
-                  {c.descuento_pct > 0 && <span className="pct"> -{Math.round(c.descuento_pct)}%</span>}
+                  {c.descuento_pct > 0 && (
+                    <span className="porig">{money(c.precio_anterior)}</span>
+                  )}
+                  <span className={c.descuento_pct > 0 ? "pdeal" : ""}>
+                    {best && <span className="dot">●</span>}
+                    {per100 ? `${money(c.precio_por_100ml)}/100ml` : money(c.precio_actual)}
+                    {c.suspect && <span className="warn">⚠</span>}
+                    {c.descuento_pct > 0 && (
+                      <span className="pct"> −{Math.round(c.descuento_pct)}%</span>
+                    )}
+                  </span>
                 </span>
               ) : (
                 <span className="oostag">sin stock</span>
@@ -681,29 +688,39 @@ function Row({ row, platforms, per100, history, onOpen }) {
         const c = row.precios[p];
         if (!c) return <td key={p} className="cell empty">—</td>;
         const best = row.mejor === p && row.n_platforms > 1;
+        const conDesc = c.descuento_pct > 0 && c.disponible;
+        // en modo $/100ml el precio anterior también se lleva a esa unidad
+        const perML = per100 && row.volume_ml ? 100 / row.volume_ml : null;
+        const actual = perML ? c.precio_actual * perML : c.precio_actual;
+        const anterior = perML ? c.precio_anterior * perML : c.precio_anterior;
         return (
           <td
             key={p}
-            className={`cell ${best ? "best" : ""} ${!c.disponible ? "oos" : ""} ${c.suspect ? "suspect" : ""}`}
+            className={`cell ${best ? "best" : ""} ${!c.disponible ? "oos" : ""} ${c.suspect ? "suspect" : ""} ${conDesc ? "split" : ""}`}
             title={c.suspect ? "Precio atípico (posible dato erróneo en la tienda)" : undefined}
           >
             {!c.disponible ? (
               <span className="oostag">sin stock</span>
-            ) : (
+            ) : conDesc ? (
               <>
-                <div className="price">
-                  {best && <span className="dot">●</span>}
-                  {per100 ? money(c.precio_por_100ml) : money(c.precio_actual)}
-                  {c.suspect && <span className="warn">⚠</span>}
+                <div className="half orig" title="Precio de lista">
+                  {money(anterior)}
                   {per100 && <span className="unit">/100ml</span>}
                 </div>
-                {c.descuento_pct > 0 && (
-                  <div className="disc">
-                    <span className="old">{money(c.precio_anterior)}</span>
-                    <span className="pct">-{Math.round(c.descuento_pct)}%</span>
-                  </div>
-                )}
+                <div className="half deal">
+                  {best && <span className="dot">●</span>}
+                  <span className="dealprice">{money(actual)}</span>
+                  <span className="pct">−{Math.round(c.descuento_pct)}%</span>
+                  {c.suspect && <span className="warn">⚠</span>}
+                </div>
               </>
+            ) : (
+              <div className="price">
+                {best && <span className="dot">●</span>}
+                {money(actual)}
+                {c.suspect && <span className="warn">⚠</span>}
+                {per100 && <span className="unit">/100ml</span>}
+              </div>
             )}
           </td>
         );

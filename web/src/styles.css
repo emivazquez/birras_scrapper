@@ -185,9 +185,19 @@ thead .sticky { z-index: 3; background: var(--panel2); }
 .price { font-weight: 600; display: flex; align-items: center; gap: 4px; }
 .dot { color: var(--green); font-size: 9px; }
 .unit { color: var(--muted); font-weight: 400; font-size: 11px; }
-.disc { margin-top: 3px; display: flex; gap: 6px; align-items: center; }
-.old { color: var(--muted); text-decoration: line-through; font-size: 11.5px; }
 .pct { color: var(--green); font-size: 11.5px; font-weight: 600; }
+
+/* Celda con descuento: partida en dos mitades — arriba el precio de lista,
+   abajo el precio con descuento (en verde) y el % al lado. Sin tachado. */
+td.cell.split { padding: 0; }
+.half { padding: 6px 12px; display: flex; align-items: center; gap: 5px; }
+.half.orig {
+  color: var(--muted); font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
+}
+.half.deal { font-weight: 700; }
+.dealprice { color: var(--green); }
+.cell.suspect .dealprice { color: var(--muted); opacity: 0.7; }
 .oos { color: var(--muted); }
 .oostag { color: var(--muted); font-size: 12px; font-style: italic; }
 .cell.suspect .price { color: var(--muted); opacity: 0.7; }
@@ -217,8 +227,10 @@ footer { color: var(--muted); font-size: 11.5px; margin-top: 18px; text-align: c
 .prow.suspect .pval { color: var(--muted); opacity: 0.7; }
 .pname { text-transform: capitalize; color: var(--muted); }
 .prow.best .pname { color: var(--text); }
-.pval { font-weight: 600; }
+.pval { font-weight: 600; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
 .pval .pct { color: var(--green); font-size: 12px; font-weight: 600; }
+.porig { color: var(--muted); font-size: 12px; font-weight: 400; }
+.pdeal { color: var(--green); }
 
 @media (max-width: 719px) {
   .app { padding: 14px 10px 50px; }
