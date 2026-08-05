@@ -127,7 +127,7 @@ function DayTable({ series, allPlatforms, maxDays = 21 }) {
   plats.forEach((p) => {
     porPlatDia[p] = {};
     series[p].forEach(([ts, v]) => {
-      const d = ts.slice(0, 10);
+      const d = diaAR(ts);
       dias.add(d);
       porPlatDia[p][d] = v; // la última del día pisa a las anteriores
     });
@@ -180,7 +180,8 @@ function DayTable({ series, allPlatforms, maxDays = 21 }) {
         </tbody>
       </table>
       <div className="dayfoot">
-        Último precio de cada día · <span className="dmin-legend">verde</span> = el más barato ese día
+        Último precio de cada día (hora de Buenos Aires) ·{" "}
+        <span className="dmin-legend">verde</span> = el más barato ese día
       </div>
     </div>
   );
@@ -202,7 +203,7 @@ function StoreDayView({ rows, platforms, history, plat, setPlat, picked, toggleP
     const serie = history?.[r.canonical_key]?.[plat] || [];
     const m = {};
     serie.forEach(([ts, v, d]) => {
-      const dia = ts.slice(0, 10);
+      const dia = diaAR(ts);
       dias.add(dia);
       m[dia] = { precio: v, desc: d || 0 };
     });
@@ -249,6 +250,10 @@ function StoreDayView({ rows, platforms, history, plat, setPlat, picked, toggleP
         <div className="nohist">Todavía no hay historial de esos productos en {plat}.</div>
       ) : (
         <div className="daywrap">
+          <div className="dayfoot" style={{ margin: "0 0 6px" }}>
+            Último precio de cada día (hora de Buenos Aires) · precio de lista arriba, con
+            descuento abajo
+          </div>
           <table className="daytable storetable">
             <thead>
               <tr>
@@ -383,6 +388,12 @@ function relativeTime(iso) {
 }
 
 const variantLabel = (s) => (!s || s === "unknown" ? "" : s.replace(/-/g, " "));
+
+// Los timestamps se guardan en UTC. Para agrupar por día hay que pasarlos a la
+// hora de Buenos Aires: si no, una corrida de las 23:42 ART (02:42 UTC del día
+// siguiente) caería en la columna del día equivocado.
+const TZ_AR = "America/Argentina/Buenos_Aires";
+const diaAR = (ts) => new Date(ts).toLocaleDateString("en-CA", { timeZone: TZ_AR }); // YYYY-MM-DD
 
 function minPrice(row) {
   const vals = Object.values(row.precios)
