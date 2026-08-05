@@ -65,18 +65,28 @@ AWS="\$(command -v aws || echo /opt/homebrew/bin/aws)"
 log() { echo "[\$(date -u +%Y-%m-%dT%H:%M:%SZ)] \$*" >> "\$LOG"; }
 
 cd "\$DEST" || exit 1
-OUT_DIR="\$DEST/out"
-mkdir -p "\$OUT_DIR"
 
-log "scrapeando $PLATFORM..."
-PYTHONPATH="\$DEST" "\$PY" -m birras_scrapers.run_local "$PLATFORM" --out "\$OUT_DIR" >> "\$LOG" 2>&1
+# Directorio temporal POR CORRIDA: si el scrapeo falla no queda ningún archivo,
+# así nunca subimos data vieja de una corrida anterior haciéndola pasar por nueva.
+RUN_DIR=\$(mktemp -d)
+trap 'rm -rf "\$RUN_DIR"' EXIT
 
-FILE=\$(ls -t "\$OUT_DIR/$PLATFORM"/*.json 2>/dev/null | head -1)
-[ -z "\$FILE" ] && { log "ERROR: no se generó archivo"; exit 1; }
+FILE=""
+N=0
+for i in 1 2 3 4 5; do
+  log "scrapeando $PLATFORM (intento \$i/5)..."
+  PYTHONPATH="\$DEST" "\$PY" -m birras_scrapers.run_local "$PLATFORM" --out "\$RUN_DIR" >> "\$LOG" 2>&1
+  CAND=\$(ls -t "\$RUN_DIR/$PLATFORM"/*.json 2>/dev/null | head -1)
+  if [ -n "\$CAND" ]; then
+    N=\$("\$PY" -c "import json,sys; print(len(json.load(open(sys.argv[1])).get('productos',[])))" "\$CAND")
+    if [ "\$N" -ge 5 ]; then FILE="\$CAND"; break; fi
+    rm -f "\$CAND"
+  fi
+  [ "\$i" -lt 5 ] && sleep \$((i * 5))
+done
 
-N=\$("\$PY" -c "import json,sys; print(len(json.load(open(sys.argv[1])).get('productos',[])))" "\$FILE")
-if [ "\$N" -lt 5 ]; then
-  log "ERROR: solo \$N productos — no subo (dejo el dato anterior)"
+if [ -z "\$FILE" ]; then
+  log "ERROR: $PLATFORM sin datos tras 5 intentos — no subo nada (queda el dato anterior)"
   exit 1
 fi
 

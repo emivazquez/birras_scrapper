@@ -20,8 +20,24 @@ _PLATFORM_PRIORITY = {"pedidosya": 0, "rappi": 1}
 
 
 class _UnionFind:
-    def __init__(self, n: int):
+    """Union-find que además lleva el GTIN de cada componente.
+
+    El GTIN es la señal más confiable que tenemos (6 de 8 plataformas lo traen
+    al 100% y el 100% de los dígitos verificadores valida), así que manda: dos
+    componentes con GTIN DISTINTO nunca se unen, por más que la clave
+    estructural o el fuzzy digan que sí.
+
+    Sin esta regla, un error de parseo encadena productos distintos en cascada:
+    si "Noire Dark Lager" se clasifica como 'rubia', su clave estructural la une
+    con la Rubia, y de ahí la transitividad arrastra Pure Gold, Blanche, 0.0 y
+    los packs a una sola fila (medido: 109 filas mezcladas, 48% de las ofertas).
+    """
+
+    def __init__(self, gtins: list[str]):
+        n = len(gtins)
         self.parent = list(range(n))
+        # cada componente arranca con el gtin de su oferta (o vacío)
+        self.gtin = list(gtins)
 
     def find(self, x: int) -> int:
         while self.parent[x] != x:
@@ -29,10 +45,33 @@ class _UnionFind:
             x = self.parent[x]
         return x
 
-    def union(self, a: int, b: int) -> None:
+    def can_union(self, a: int, b: int) -> bool:
+        ga, gb = self.gtin[self.find(a)], self.gtin[self.find(b)]
+        return not (ga and gb and ga != gb)
+
+    def union(self, a: int, b: int) -> bool:
         ra, rb = self.find(a), self.find(b)
-        if ra != rb:
-            self.parent[max(ra, rb)] = min(ra, rb)
+        if ra == rb:
+            return True
+        if not self.can_union(ra, rb):
+            return False
+        keep, drop = (ra, rb) if ra < rb else (rb, ra)
+        self.parent[drop] = keep
+        # el componente conserva el gtin conocido (si alguno lo tenía)
+        self.gtin[keep] = self.gtin[keep] or self.gtin[drop]
+        return True
+
+
+def _majority(values):
+    """Valor más frecuente de un iterable (None si viene vacío). Determinístico:
+    ante empate gana el que ordena primero, para que la clave canónica sea estable."""
+    from collections import Counter
+
+    c = Counter(v for v in values if v not in (None, ""))
+    if not c:
+        return None
+    top = max(c.values())
+    return sorted(k for k, v in c.items() if v == top)[0]
 
 
 def _variants_compatible(a: str, b: str) -> bool:
@@ -59,7 +98,7 @@ def _canonical_key(rep: dict, container: str | None) -> str:
 def assign_canonicals(offers: list[dict]) -> list[dict]:
     """Setea offer['canonical_id'] y devuelve la lista de canónicos."""
     n = len(offers)
-    uf = _UnionFind(n)
+    uf = _UnionFind([o.get("gtin_norm") or "" for o in offers])
 
     # Nivel 0 — GTIN
     by_gtin: dict[str, int] = {}
@@ -112,7 +151,14 @@ def assign_canonicals(offers: list[dict]) -> list[dict]:
         member_offers = [offers[m] for m in members]
         rep = _pick_representative(member_offers)
         gtin = next((o["gtin_norm"] for o in member_offers if o["gtin_norm"]), "")
-        container = next((o["container"] for o in member_offers if o["container"]), None)
+        # El grupo (unido por GTIN) sabe más que cualquier oferta suelta: si una
+        # tienda nombra el tipo y otra no, lo tomamos del grupo por mayoría.
+        # Ej: Disco dice "Ultra Lager 275 Ml Michelob" (rubia) y Carrefour
+        # "Michelob Ultra porrón" (unknown) -> el canónico queda 'rubia'.
+        variant = _majority(o["variant_slug"] for o in member_offers if o["variant_slug"] != "unknown")
+        container = _majority(o["container"] for o in member_offers if o["container"])
+        is_zero = _majority(o.get("is_zero") for o in member_offers)
+        rep = {**rep, "variant_slug": variant or "unknown", "is_zero": bool(is_zero)}
         ckey = _canonical_key(rep, container)
         for m in members:
             offers[m]["canonical_id"] = cid
