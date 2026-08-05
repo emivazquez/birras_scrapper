@@ -1,7 +1,10 @@
 """Entrypoint Lambda del scraper.
 
 Step Functions (Map) invoca esta función una vez por tienda con un evento:
-    { "store": { "platform": "pedidosya", "external_store_id": "356102", ... } }
+    { "store": { "platform": "pedidosya", ... }, "run_id": "..." }
+
+También la invoca directamente el schedule de reintento de PedidosYa (ver
+infra/scheduler.tf), sin run_id: en ese caso se usa un timestamp.
 
 Si BIRRAS_RAW_BUCKET está seteado, escribe el resultado crudo en
     s3://{bucket}/raw/{plataforma}/{external_store_id}/{run_id}.json
@@ -11,21 +14,50 @@ Si no, devuelve el resultado completo inline (útil para tests).
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
+import time
 
 from .adapters.registry import get_adapter
+
+# Reintentos DENTRO de la Lambda, espaciados. Los reintentos de Step Functions
+# son a los 3/6/12s y no le ganan a un bloqueo por reputación de IP; espaciarlos
+# más da otra chance de caer en un momento en que Cloudflare deja pasar.
+# (medido: PedidosYa entra ~7% de las veces desde AWS, 31% a las 22h UTC)
+ATTEMPTS = int(os.environ.get("BIRRAS_SCRAPE_ATTEMPTS", "3"))
+ATTEMPT_SLEEP_S = int(os.environ.get("BIRRAS_SCRAPE_SLEEP_S", "20"))
+MIN_PRODUCTS = int(os.environ.get("BIRRAS_MIN_PRODUCTS", "5"))
 
 
 def handler(event: dict, context=None) -> dict:
     store = event["store"]
-    run_id = event.get("run_id", "adhoc")
+    run_id = event.get("run_id") or dt.datetime.now(dt.timezone.utc).strftime(
+        "auto-%Y%m%dT%H%M%SZ"
+    )
     platform = store["platform"]
-
     adapter = get_adapter(platform)
-    result = adapter.fetch(store)
-    payload = result.to_dict()
 
+    result = None
+    last_error = None
+    for i in range(ATTEMPTS):
+        try:
+            candidate = adapter.fetch(store)
+            if candidate.total >= MIN_PRODUCTS:
+                result = candidate
+                break
+            last_error = f"solo {candidate.total} productos"
+        except Exception as e:  # noqa: BLE001 — reintentamos ante cualquier fallo
+            last_error = f"{type(e).__name__}: {e}"
+        if i < ATTEMPTS - 1:
+            time.sleep(ATTEMPT_SLEEP_S)
+
+    if result is None:
+        # Que falle: Step Functions lo aísla por item y el dashboard muestra la
+        # tienda como caída. Nunca escribimos un raw vacío que pise al bueno.
+        raise RuntimeError(f"{platform}: sin datos tras {ATTEMPTS} intentos ({last_error})")
+
+    payload = result.to_dict()
     bucket = os.environ.get("BIRRAS_RAW_BUCKET")
     if bucket:
         import boto3  # disponible en el runtime de Lambda
