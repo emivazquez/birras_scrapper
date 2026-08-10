@@ -104,6 +104,8 @@ data "aws_iam_policy_document" "github_deploy" {
       "cloudwatch:*", # alarmas
       "sts:GetCallerIdentity",
       "ec2:DescribeRegions",
+      # valida una definición suelta (no un recurso), así que exige stateMachine:*
+      "states:ValidateStateMachineDefinition",
     ]
     resources = ["*"]
   }
