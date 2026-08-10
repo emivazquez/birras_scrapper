@@ -55,9 +55,10 @@ module "reducer_lambda" {
   environment_variables = {
     BIRRAS_RAW_BUCKET       = aws_s3_bucket.raw.bucket
     BIRRAS_PUBLISHED_BUCKET = aws_s3_bucket.published.bucket
-    # PedidosYa entra de a ratos desde AWS: si su último raw es de hace <12h lo
-    # usamos igual (el dashboard lo muestra marcado como "precios de hace N").
-    BIRRAS_RAW_MAX_AGE_H = "12"
+    # PedidosYa entra de a ratos desde AWS: si su último raw es reciente lo
+    # usamos igual (el dashboard lo marca como "precios de hace N").
+    # 24h porque con 3 corridas diarias (10/14/20 ART) hay hasta 14h de hueco.
+    BIRRAS_RAW_MAX_AGE_H = "24"
   }
 
   attach_policy_statements = true

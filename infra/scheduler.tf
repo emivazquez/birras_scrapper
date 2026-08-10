@@ -89,7 +89,8 @@ resource "aws_scheduler_schedule" "refresh_2h" {
     mode = "OFF"
   }
 
-  schedule_expression          = "rate(2 hours)"
+  # 3 corridas por día, hora de Buenos Aires: 10:00, 14:00 y 20:00.
+  schedule_expression          = "cron(0 10,14,20 * * ? *)"
   schedule_expression_timezone = "America/Argentina/Buenos_Aires"
 
   target {
