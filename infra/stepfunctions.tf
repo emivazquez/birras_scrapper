@@ -95,11 +95,14 @@ resource "aws_sfn_state_machine" "pipeline" {
                 FunctionName = module.scrapers_lambda.lambda_function_arn
                 "Payload.$"  = "$"
               }
+              # La Lambda ya reintenta internamente (hasta 25 veces para
+              # PedidosYa). Acá dejamos 1 solo reintento para cubrir fallas de
+              # infra; más multiplicaría el tiempo de la corrida por nada.
               Retry = [{
                 ErrorEquals     = ["States.ALL"]
-                MaxAttempts     = 4
-                IntervalSeconds = 3
-                BackoffRate     = 2.0
+                MaxAttempts     = 1
+                IntervalSeconds = 5
+                BackoffRate     = 1.0
               }]
               Catch = [{
                 ErrorEquals = ["States.ALL"]

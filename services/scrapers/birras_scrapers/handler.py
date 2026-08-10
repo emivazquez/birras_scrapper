@@ -25,9 +25,28 @@ from .adapters.registry import get_adapter
 # son a los 3/6/12s y no le ganan a un bloqueo por reputación de IP; espaciarlos
 # más da otra chance de caer en un momento en que Cloudflare deja pasar.
 # (medido: PedidosYa entra ~7% de las veces desde AWS, 31% a las 22h UTC)
-ATTEMPTS = int(os.environ.get("BIRRAS_SCRAPE_ATTEMPTS", "3"))
+#
+# Se configura POR PLATAFORMA: los VTEX/Coto entran al primer intento, así que
+# no tiene sentido hacerlos esperar. PedidosYa es el que necesita insistir.
+#   BIRRAS_SCRAPE_ATTEMPTS_PEDIDOSYA=25
+DEFAULT_ATTEMPTS = int(os.environ.get("BIRRAS_SCRAPE_ATTEMPTS", "3"))
 ATTEMPT_SLEEP_S = int(os.environ.get("BIRRAS_SCRAPE_SLEEP_S", "20"))
 MIN_PRODUCTS = int(os.environ.get("BIRRAS_MIN_PRODUCTS", "5"))
+# margen para cerrar prolijo antes de que Lambda mate la ejecución
+RESERVE_MS = 20_000
+
+
+def _attempts_for(platform: str) -> int:
+    return int(
+        os.environ.get(f"BIRRAS_SCRAPE_ATTEMPTS_{platform.upper()}", DEFAULT_ATTEMPTS)
+    )
+
+
+def _time_left_ms(context) -> float:
+    try:
+        return context.get_remaining_time_in_millis()
+    except Exception:  # noqa: BLE001 — fuera de Lambda no hay context
+        return float("inf")
 
 
 def handler(event: dict, context=None) -> dict:
@@ -38,9 +57,12 @@ def handler(event: dict, context=None) -> dict:
     platform = store["platform"]
     adapter = get_adapter(platform)
 
+    attempts = _attempts_for(platform)
     result = None
     last_error = None
-    for i in range(ATTEMPTS):
+    hechos = 0
+    for i in range(attempts):
+        hechos = i + 1
         try:
             candidate = adapter.fetch(store)
             if candidate.total >= MIN_PRODUCTS:
@@ -49,13 +71,17 @@ def handler(event: dict, context=None) -> dict:
             last_error = f"solo {candidate.total} productos"
         except Exception as e:  # noqa: BLE001 — reintentamos ante cualquier fallo
             last_error = f"{type(e).__name__}: {e}"
-        if i < ATTEMPTS - 1:
+        if i < attempts - 1:
+            # cortar si no llegamos a hacer otro intento antes del timeout
+            if _time_left_ms(context) < (ATTEMPT_SLEEP_S * 1000 + RESERVE_MS):
+                last_error = f"{last_error} (sin tiempo para más intentos)"
+                break
             time.sleep(ATTEMPT_SLEEP_S)
 
     if result is None:
         # Que falle: Step Functions lo aísla por item y el dashboard muestra la
         # tienda como caída. Nunca escribimos un raw vacío que pise al bueno.
-        raise RuntimeError(f"{platform}: sin datos tras {ATTEMPTS} intentos ({last_error})")
+        raise RuntimeError(f"{platform}: sin datos tras {hechos} intentos ({last_error})")
 
     payload = result.to_dict()
     bucket = os.environ.get("BIRRAS_RAW_BUCKET")

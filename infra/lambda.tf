@@ -8,8 +8,10 @@ module "scrapers_lambda" {
   handler       = "birras_scrapers.handler.handler"
   runtime       = var.python_runtime
   architectures = [var.lambda_architecture]
-  timeout       = 180 # 3 intentos con 20s de espera entre medio
-  memory_size   = 512
+  # 25 intentos x 20s de espera ~= 8 min; 900s (el máximo) deja margen.
+  # El handler corta solo si no llega a hacer otro intento antes del timeout.
+  timeout     = 900
+  memory_size = 512
 
   source_path = [{
     path             = "${path.module}/../services/scrapers"
@@ -19,6 +21,9 @@ module "scrapers_lambda" {
 
   environment_variables = {
     BIRRAS_RAW_BUCKET = aws_s3_bucket.raw.bucket
+    # Cloudflare bloquea a PedidosYa desde IPs de AWS de forma intermitente:
+    # insiste hasta 25 veces (los demás adapters entran al primer intento).
+    BIRRAS_SCRAPE_ATTEMPTS_PEDIDOSYA = "25"
   }
 
   attach_policy_statements = true
