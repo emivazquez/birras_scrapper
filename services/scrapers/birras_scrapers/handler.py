@@ -57,7 +57,8 @@ def handler(event: dict, context=None) -> dict:
     platform = store["platform"]
     adapter = get_adapter(platform)
 
-    attempts = _attempts_for(platform)
+    # el evento puede acotar los intentos (útil para probar rápido)
+    attempts = int(event.get("attempts") or _attempts_for(platform))
     result = None
     last_error = None
     hechos = 0

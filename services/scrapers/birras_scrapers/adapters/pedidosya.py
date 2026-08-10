@@ -75,7 +75,8 @@ class PedidosYaAdapter(Adapter):
         vendor_id = cfg["vendor_id"]
         category_ids = cfg.get("category_ids") or DEFAULT_CATEGORY_IDS
 
-        session = new_session({"Accept": "application/json"})
+        # cookies opcionales (sesión exportada de un browser). Ver http.new_session.
+        session = new_session({"Accept": "application/json"}, cfg.get("cookies"))
 
         by_id: dict[str, Product] = {}
         for cat in category_ids:
