@@ -21,9 +21,11 @@ module "scrapers_lambda" {
 
   environment_variables = {
     BIRRAS_RAW_BUCKET = aws_s3_bucket.raw.bucket
-    # Cloudflare bloquea a PedidosYa desde IPs de AWS de forma intermitente:
-    # insiste hasta 25 veces (los demás adapters entran al primer intento).
-    BIRRAS_SCRAPE_ATTEMPTS_PEDIDOSYA = "25"
+    # PedidosYa lo scrapea la Mac (IP residencial) y el reducer levanta ese raw.
+    # Desde AWS está bloqueado por ASN (probado: 0/6 hasta con IP dedicada de
+    # EC2), así que acá solo hacemos un intento corto por si algún día afloja:
+    # con 25 intentos cada corrida perdía 8-16 min esperando un fallo seguro.
+    BIRRAS_SCRAPE_ATTEMPTS_PEDIDOSYA = "3"
   }
 
   attach_policy_statements = true

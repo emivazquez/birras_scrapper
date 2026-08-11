@@ -95,7 +95,7 @@ KEY="raw/$PLATFORM/\$STORE/local-\$(date -u +%Y%m%dT%H%M%SZ).json"
 
 if "\$AWS" s3 cp "\$FILE" "s3://$BUCKET/\$KEY" --profile "$PROFILE" --only-show-errors >> "\$LOG" 2>&1; then
   log "OK: \$N productos -> \$KEY"
-  find "\$OUT_DIR" -name '*.json' -mtime +2 -delete 2>/dev/null
+  # (el temp dir de la corrida lo borra el trap EXIT)
 else
   log "ERROR: falló la subida (¿SSO vencido? correr: aws sso login --profile $PROFILE)"
   exit 1
@@ -103,7 +103,10 @@ fi
 EOF
 chmod +x "$DEST/run.sh"
 
-echo "[4/4] instalando el agente launchd (cada 2h)"
+echo "[4/4] instalando el agente launchd (09:45, 13:45 y 19:45)"
+# Corre 15 min ANTES de cada corrida del pipeline (10, 14 y 20 ART), así el raw
+# ya está fresco en S3 cuando el reducer lo busca. RunAtLoad cubre el caso de
+# que la Mac estuviera apagada/dormida a esa hora.
 mkdir -p "$HOME/Library/LaunchAgents"
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -113,7 +116,12 @@ cat > "$PLIST" <<EOF
     <key>Label</key><string>$LABEL</string>
     <key>ProgramArguments</key>
     <array><string>$DEST/run.sh</string></array>
-    <key>StartInterval</key><integer>7200</integer>
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>45</integer></dict>
+        <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>45</integer></dict>
+    </array>
     <key>RunAtLoad</key><true/>
     <key>StandardOutPath</key><string>$DEST/launchd.out.log</string>
     <key>StandardErrorPath</key><string>$DEST/launchd.err.log</string>
