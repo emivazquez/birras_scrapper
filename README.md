@@ -49,8 +49,19 @@ corre cada 2 h. Log en `~/Library/Application Support/birras-scraper/scraper.log
 Volvé a correrlo después de tocar el código de los adapters. Para sacarlo:
 `scripts/install_local_scraper.sh --uninstall`.
 
-Requiere sesión SSO viva (`aws sso login --profile production`); si se vence, la
-subida falla y el dashboard muestra que PedidosYa quedó sin datos.
+Sube con el perfil `birras-scraper` (usuario IAM `birras-local-scraper`, ver
+`infra/iam-local-scraper.tf`): credencial de larga duración para no depender de
+la sesión SSO, acotada a `s3:PutObject` sobre `raw/pedidosya/*` y nada más.
+
+La access key **no** la crea Terraform (iría al state). Se genera una vez con:
+
+```bash
+aws iam create-access-key --user-name birras-local-scraper
+```
+
+y se guarda como perfil `[birras-scraper]` en `~/.aws/credentials` (chmod 600).
+Para rotarla: crear una nueva, actualizar el archivo y borrar la vieja con
+`aws iam delete-access-key`.
 
 ## Deploy
 

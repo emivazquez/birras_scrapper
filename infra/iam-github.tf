@@ -85,6 +85,18 @@ data "aws_iam_policy_document" "github_deploy" {
       "arn:aws:iam::${local.account_id}:policy/${var.project}-*",
     ]
   }
+  # el usuario del scraper local (birras-local-scraper) también lo maneja TF
+  statement {
+    sid    = "IamUsuarioDelScraperLocal"
+    effect = "Allow"
+    actions = [
+      "iam:GetUser", "iam:CreateUser", "iam:DeleteUser", "iam:TagUser",
+      "iam:ListUserTags", "iam:ListUserPolicies", "iam:GetUserPolicy",
+      "iam:PutUserPolicy", "iam:DeleteUserPolicy",
+      "iam:ListAttachedUserPolicies", "iam:ListAccessKeys", "iam:ListGroupsForUser",
+    ]
+    resources = ["arn:aws:iam::${local.account_id}:user/${var.project}-*"]
+  }
   statement {
     sid       = "OidcProvider"
     effect    = "Allow"
