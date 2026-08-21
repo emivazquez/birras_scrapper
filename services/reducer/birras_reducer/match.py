@@ -83,9 +83,13 @@ def _canonical_key(rep: dict, container: str | None) -> str:
 
     Determinística a partir de la identidad normalizada, no del índice de corrida.
     """
+    # el sub_brand se pega al slug de marca (quilmes -> quilmes-1890) en vez de
+    # sumar un campo nuevo: así solo cambian las claves de los productos que
+    # tienen sub_brand y no se resetea el historial de todo el catálogo
+    marca = rep["brand_slug"] + (f"-{rep['sub_brand']}" if rep.get("sub_brand") else "")
     return "|".join(
         [
-            rep["brand_slug"],
+            marca,
             rep["variant_slug"],
             str(rep["volume_ml_canon"] or ""),
             container or "",
@@ -158,7 +162,9 @@ def assign_canonicals(offers: list[dict]) -> list[dict]:
         variant = _majority(o["variant_slug"] for o in member_offers if o["variant_slug"] != "unknown")
         container = _majority(o["container"] for o in member_offers if o["container"])
         is_zero = _majority(o.get("is_zero") for o in member_offers)
-        rep = {**rep, "variant_slug": variant or "unknown", "is_zero": bool(is_zero)}
+        sub_brand = _majority(o.get("sub_brand") for o in member_offers) or ""
+        rep = {**rep, "variant_slug": variant or "unknown", "is_zero": bool(is_zero),
+               "sub_brand": sub_brand}
         ckey = _canonical_key(rep, container)
         for m in members:
             offers[m]["canonical_id"] = cid
@@ -170,6 +176,7 @@ def assign_canonicals(offers: list[dict]) -> list[dict]:
                 "canonical_key": ckey,
                 "brand_slug": rep["brand_slug"],
                 "brand_display": rep["brand_display"],
+                "sub_brand": sub_brand,
                 "variant_slug": rep["variant_slug"],
                 "volume_ml": rep["volume_ml_canon"],
                 "container": container,
@@ -229,7 +236,11 @@ def _variant_title(slug: str) -> str:
 
 
 def _display_name(rep: dict, container: str | None) -> str:
-    parts = [rep["brand_display"]]
+    # "Quilmes 1890 473ml lata" en vez de "Quilmes 473ml lata"
+    marca = rep["brand_display"]
+    if rep.get("sub_brand"):
+        marca = f"{marca} {rep['sub_brand']}"
+    parts = [marca]
     vt = _variant_title(rep["variant_slug"])
     if vt:
         parts.append(vt)

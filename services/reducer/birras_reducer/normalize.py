@@ -35,8 +35,9 @@ def _load_csv(name: str) -> list[dict]:
 
 # --- tablas de curación cargadas una vez ---
 _BRAND_ROWS = _load_csv("brand_aliases.csv")
-_BRAND_ALIAS: dict[str, tuple[str, str]] = {
-    norm_text(r["alias_norm"]): (r["brand_slug"], r["brand_display"]) for r in _BRAND_ROWS
+_BRAND_ALIAS: dict[str, tuple[str, str, str]] = {
+    norm_text(r["alias_norm"]): (r["brand_slug"], r["brand_display"], (r.get("sub_brand") or "").strip())
+    for r in _BRAND_ROWS
 }
 # marcas conocidas ordenadas por longitud de alias desc (para match del alias más largo primero)
 _BRAND_ALIASES_SORTED = sorted(_BRAND_ALIAS, key=len, reverse=True)
@@ -55,8 +56,13 @@ _PACK_RE2 = re.compile(r"\bx\s*(\d{1,2})\b", re.I)
 _ZERO_RE = re.compile(r"0[.,]0|\bcero\b|sin alcohol|\bzero\b|\b0\s*0\b|0\s*%", re.I)
 
 
-def resolve_brand(marca_raw: str, nombre_raw: str) -> tuple[str, str]:
-    """(brand_slug, brand_display). Busca alias exacto en marca, luego en el nombre."""
+def resolve_brand(marca_raw: str, nombre_raw: str) -> tuple[str, str, str]:
+    """(brand_slug, brand_display, sub_brand).
+
+    El sub_brand mantiene visible una línea propia dentro de la marca madre
+    (ej. 1890 es Quilmes, pero NO es la Quilmes regular: sin esto la fila
+    quedaba como "Quilmes 473ml" y no se distinguía de la común).
+    """
     marca_norm = norm_text(marca_raw)
     if marca_norm in _BRAND_ALIAS:
         return _BRAND_ALIAS[marca_norm]
@@ -67,10 +73,10 @@ def resolve_brand(marca_raw: str, nombre_raw: str) -> tuple[str, str]:
             return _BRAND_ALIAS[alias]
     # fallback: marca cruda slugificada (marca desconocida, pero se conserva)
     if marca_norm:
-        return (marca_norm.replace(" ", "-"), marca_raw.strip())
+        return (marca_norm.replace(" ", "-"), marca_raw.strip(), "")
     # última chance: primer token del nombre
     first = nombre_norm.split(" ")[0] if nombre_norm else "desconocida"
-    return (first, first.title())
+    return (first, first.title(), "")
 
 
 def resolve_variant(nombre_raw: str, tipo_raw: str) -> str:
@@ -112,7 +118,7 @@ def extract_pack_qty(nombre_raw: str) -> int:
 
 def normalize_offer(offer: dict) -> dict:
     """Agrega campos normalizados + clave canónica a una oferta (in-place)."""
-    brand_slug, brand_display = resolve_brand(offer.get("marca", ""), offer.get("nombre", ""))
+    brand_slug, brand_display, sub_brand = resolve_brand(offer.get("marca", ""), offer.get("nombre", ""))
     variant = resolve_variant(offer.get("nombre", ""), offer.get("tipo", ""))
     volume = resolve_volume(offer.get("volumen_ml"))
     container = extract_container(offer.get("nombre", ""))
@@ -126,6 +132,7 @@ def normalize_offer(offer: dict) -> dict:
     offer.update(
         brand_slug=brand_slug,
         brand_display=brand_display,
+        sub_brand=sub_brand,
         variant_slug=variant,
         volume_ml_canon=volume,
         container=container,

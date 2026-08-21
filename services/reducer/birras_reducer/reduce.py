@@ -76,7 +76,11 @@ def _price_cell(offer: dict) -> dict:
         "descuento_pct": offer["descuento_pct"],
         "precio_por_100ml": offer["precio_por_100ml"],
         "stock": offer["stock"],
-        "disponible": bool(offer.get("stock")),
+        # Un precio <=0 no es un precio. VTEX devuelve Price=0 para productos que
+        # no está vendiendo (en Carrefour son ~1/3 del catálogo, todos con
+        # stock 0): se conservan para que la matriz muestre "sin stock" —que es
+        # información útil— pero nunca deben competir por el "más barato".
+        "disponible": bool(offer.get("stock")) and (offer.get("precio_actual") or 0) > 0,
     }
     # Promo multi-unidad (2x1, "2do al 50%"): el precio unitario no la refleja
     if offer.get("promo_tipo") == "multi" and offer.get("promo_precio_efectivo"):
@@ -133,6 +137,7 @@ def build_matrix(canonicals: list[dict], offers: list[dict]) -> list[dict]:
                         "canonical_id",
                         "canonical_key",
                         "brand_display",
+                        "sub_brand",
                         "variant_slug",
                         "volume_ml",
                         "container",
