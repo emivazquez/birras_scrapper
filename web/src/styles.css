@@ -122,6 +122,11 @@ body {
 .darrow { font-size: 8px; margin-left: 3px; vertical-align: middle; }
 .darrow.baja { color: var(--green); }
 .darrow.sube { color: var(--red); }
+.dpromo {
+  font-size: 9.5px; color: var(--accent); background: #3a2f12;
+  border: 1px solid #5a4a1c; border-radius: 3px; padding: 0 3px;
+  margin-top: 2px; display: inline-block; white-space: nowrap; cursor: help;
+}
 .dayfoot { color: var(--muted); font-size: 11px; margin-top: 8px; }
 .dmin-legend { color: var(--green); }
 

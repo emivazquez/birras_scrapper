@@ -250,8 +250,15 @@ def persist_history(offers, db_path: Path, run_ts: str) -> int:
         """CREATE TABLE IF NOT EXISTS price_observations(
              canonical_key VARCHAR, platform VARCHAR, external_product_id VARCHAR,
              run_ts VARCHAR, precio_actual DOUBLE, descuento_pct DOUBLE,
-             precio_por_100ml DOUBLE, stock INTEGER)"""
+             precio_por_100ml DOUBLE, stock INTEGER,
+             promo_etiqueta VARCHAR, promo_precio_efectivo DOUBLE)"""
     )
+    # migración en caliente: la tabla vieja no tiene las columnas de promo y ya
+    # acumula meses de historial, así que se agregan en vez de recrearla.
+    existentes = {c[1] for c in con.execute("PRAGMA table_info('price_observations')").fetchall()}
+    for col, tipo in (("promo_etiqueta", "VARCHAR"), ("promo_precio_efectivo", "DOUBLE")):
+        if col not in existentes:
+            con.execute(f"ALTER TABLE price_observations ADD COLUMN {col} {tipo}")
     rows = [
         (
             o.get("canonical_key", ""),
@@ -262,10 +269,18 @@ def persist_history(offers, db_path: Path, run_ts: str) -> int:
             o["descuento_pct"],
             o["precio_por_100ml"],
             o["stock"],
+            o.get("promo_etiqueta") or None,
+            o.get("promo_precio_efectivo") if o.get("promo_tipo") == "multi" else None,
         )
         for o in offers
     ]
-    con.executemany("INSERT INTO price_observations VALUES (?,?,?,?,?,?,?,?)", rows)
+    con.executemany(
+        """INSERT INTO price_observations
+           (canonical_key, platform, external_product_id, run_ts, precio_actual,
+            descuento_pct, precio_por_100ml, stock, promo_etiqueta, promo_precio_efectivo)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
+        rows,
+    )
     con.close()
     return len(rows)
 
@@ -357,17 +372,21 @@ def build_history_detail_json(db_path: Path, out_dir: Path, max_runs: int = 48) 
     q = """
         SELECT canonical_key, platform, run_ts,
                MIN(precio_actual) AS p,
-               MAX(descuento_pct) AS d
+               MAX(descuento_pct) AS d,
+               MAX(promo_etiqueta) AS pe,
+               MIN(promo_precio_efectivo) AS pp
         FROM price_observations
         WHERE precio_actual > 0 AND stock > 0 AND canonical_key <> ''
         GROUP BY canonical_key, platform, run_ts
         ORDER BY canonical_key, platform, run_ts
     """
     detail: dict[str, dict[str, list]] = {}
-    for ckey, platform, run_ts, p, d in con.execute(q).fetchall():
-        detail.setdefault(ckey, {}).setdefault(platform, []).append(
-            [run_ts, round(p, 2), round(d or 0, 1)]
-        )
+    for ckey, platform, run_ts, p, d, pe, pp in con.execute(q).fetchall():
+        # [fecha, precio, desc%, etiqueta_promo, precio_efectivo_promo]
+        punto = [run_ts, round(p, 2), round(d or 0, 1)]
+        if pe:
+            punto += [pe, round(pp, 2) if pp else None]
+        detail.setdefault(ckey, {}).setdefault(platform, []).append(punto)
     con.close()
     out = {}
     for ckey, plats in detail.items():

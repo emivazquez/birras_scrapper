@@ -126,10 +126,11 @@ function DayTable({ series, allPlatforms, maxDays = 21 }) {
   const dias = new Set();
   plats.forEach((p) => {
     porPlatDia[p] = {};
-    series[p].forEach(([ts, v]) => {
+    series[p].forEach(([ts, v, , etiqueta, efectivo]) => {
       const d = diaAR(ts);
       dias.add(d);
-      porPlatDia[p][d] = v; // la última del día pisa a las anteriores
+      // la última observación del día pisa a las anteriores
+      porPlatDia[p][d] = { precio: v, promo: etiqueta || null, efectivo: efectivo || null };
     });
   });
   const cols = [...dias].sort().slice(-maxDays);
@@ -137,7 +138,7 @@ function DayTable({ series, allPlatforms, maxDays = 21 }) {
   // el más barato de cada día, para resaltarlo
   const minPorDia = {};
   cols.forEach((d) => {
-    const vals = plats.map((p) => porPlatDia[p][d]).filter((v) => v != null);
+    const vals = plats.map((p) => porPlatDia[p][d]?.precio).filter((v) => v != null);
     if (vals.length) minPorDia[d] = Math.min(...vals);
   });
 
@@ -164,14 +165,20 @@ function DayTable({ series, allPlatforms, maxDays = 21 }) {
                 {p}
               </td>
               {cols.map((d, i) => {
-                const v = porPlatDia[p][d];
-                if (v == null) return <td key={d} className="dempty">—</td>;
-                const prev = cols.slice(0, i).reverse().map((x) => porPlatDia[p][x]).find((x) => x != null);
+                const cel = porPlatDia[p][d];
+                if (cel == null) return <td key={d} className="dempty">—</td>;
+                const v = cel.precio;
+                const prev = cols.slice(0, i).reverse().map((x) => porPlatDia[p][x]?.precio).find((x) => x != null);
                 const dir = prev == null || v === prev ? "" : v < prev ? "baja" : "sube";
                 return (
                   <td key={d} className={`dcell ${v === minPorDia[d] ? "dmin" : ""}`}>
                     {money(v)}
                     {dir && <span className={`darrow ${dir}`}>{dir === "baja" ? "▼" : "▲"}</span>}
+                    {cel.promo && (
+                      <div className="dpromo" title={cel.efectivo ? `c/u ${money(cel.efectivo)} con la promo` : cel.promo}>
+                        {cel.promo}
+                      </div>
+                    )}
                   </td>
                 );
               })}
@@ -202,10 +209,10 @@ function StoreDayView({ rows, platforms, history, plat, setPlat, picked, toggleP
   elegidos.forEach((r) => {
     const serie = history?.[r.canonical_key]?.[plat] || [];
     const m = {};
-    serie.forEach(([ts, v, d]) => {
+    serie.forEach(([ts, v, d, etiqueta, efectivo]) => {
       const dia = diaAR(ts);
       dias.add(dia);
-      m[dia] = { precio: v, desc: d || 0 };
+      m[dia] = { precio: v, desc: d || 0, promo: etiqueta || null, efectivo: efectivo || null };
     });
     porProd[r.canonical_id] = m;
   });
@@ -276,6 +283,11 @@ function StoreDayView({ rows, platforms, history, plat, setPlat, picked, toggleP
                           {money(v.precio)}
                           {lista && <span className="pct"> −{Math.round(v.desc)}%</span>}
                         </div>
+                        {v.promo && (
+                          <div className="dpromo" title={v.efectivo ? `c/u ${money(v.efectivo)} con la promo` : v.promo}>
+                            {v.promo}
+                          </div>
+                        )}
                       </td>
                     );
                   })}

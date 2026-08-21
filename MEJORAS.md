@@ -101,11 +101,16 @@ cuenta como disponible, así jamás compite por el "más barato".
 
 ## B. Features
 
-### B1. Mostrar promos (2x1 / 2da al 70%) en la evolución de precio 🟠
+### B1. Mostrar promos (2x1 / 2da al 70%) en la evolución de precio ✅ HECHO (11-ago)
 Hoy la promo se ve en la matriz pero **no en las vistas por día**: la tabla
 `price_observations` guarda `precio_actual`, `descuento_pct`, `precio_por_100ml`
 y `stock` — **no la promo**.
-**Fix:** agregar la promo al historial y mostrarla como badge en las celdas por día.
+**Resuelto:** `price_observations` suma `promo_etiqueta` y `promo_precio_efectivo`
+(migración con `ALTER TABLE`, verificada sobre una copia del DuckDB de producción:
+**1.294.521 filas intactas**). `history_detail.json` pasa a
+`[fecha, precio, desc%, etiqueta, precio_efectivo]` —el front tolera el formato
+viejo— y las dos vistas por día muestran el badge con tooltip
+("2do −70% → c/u $1.638 con la promo").
 
 ### B2. Filtro de fecha / rango en las vistas por día 🟡
 Hoy están fijas en las últimas 14 (por tienda) y 21 (por cerveza) corridas.
